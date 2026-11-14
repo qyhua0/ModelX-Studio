@@ -165,9 +165,8 @@ public partial class ChatViewModel : ObservableObject
         var conv = SelectedConversation;
         if (conv == null) return;
 
-        var result = MessageBox.Show($"删除对话「{conv.Title}」？此操作不可恢复。",
-            "删除对话", MessageBoxButton.OKCancel, MessageBoxImage.Question);
-        if (result != MessageBoxResult.OK) return;
+        if (!ThemedDialog.Confirm($"删除对话「{conv.Title}」？此操作不可恢复。", "删除对话", "删除"))
+            return;
 
         App.Store.Delete(conv.Id);
         Conversations.Remove(conv);

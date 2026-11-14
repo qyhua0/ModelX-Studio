@@ -1,0 +1,60 @@
+<!--
+    作者：zhenhua
+    功能：应用内消息框（替代系统 MessageBox）：深色标题栏 + 深色底，避免系统浅色弹窗
+          与整体配色冲突；支持「确定」和「确定/取消」两种，Enter = 确定，Esc = 取消。
+    -->
+<Window x:Class="ModelXStudio.App.ThemedDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ctl="clr-namespace:ModelXStudio.App.Controls"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        SizeToContent="WidthAndHeight"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        MinWidth="380" MaxWidth="520"
+        Title="提示"
+        WindowStyle="None"
+        Background="{StaticResource BrushBg}">
+    <shell:WindowChrome.WindowChrome>
+        <!-- 弹窗不允许调尺寸，所以 ResizeBorderThickness=0，只保留拖动 -->
+        <shell:WindowChrome CaptionHeight="38" ResizeBorderThickness="0"
+                            CornerRadius="0" GlassFrameThickness="0"
+                            UseAeroCaptionButtons="False" />
+    </shell:WindowChrome.WindowChrome>
+
+    <Border BorderBrush="{StaticResource BrushBorderStrong}" BorderThickness="1">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <ctl:TitleBar Grid.Row="0" Caption="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}" />
+
+    <Grid Grid.Row="1" Margin="22,20,22,18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal">
+            <TextBlock x:Name="Glyph" Text="i" FontSize="18" LineHeight="22"
+                       Foreground="{StaticResource BrushAccent}"
+                       VerticalAlignment="Top" Margin="0,0,10,0" />
+            <ScrollViewer MaxHeight="320" VerticalScrollBarVisibility="Auto">
+                <TextBlock x:Name="Message" TextWrapping="Wrap" MaxWidth="430"
+                           LineHeight="21" Foreground="{StaticResource BrushText}" />
+            </ScrollViewer>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+            <Button x:Name="CancelBtn" Content="取消" MinWidth="82" Visibility="Collapsed"
+                    IsCancel="True" Click="Cancel_Click" />
+            <Button x:Name="OkBtn" Content="确定" MinWidth="82" Margin="10,0,0,0"
+                    Style="{StaticResource PrimaryButton}" IsDefault="True" Click="Ok_Click" />
+        </StackPanel>
+    </Grid>
+    </Grid>
+    </Border>
+</Window>

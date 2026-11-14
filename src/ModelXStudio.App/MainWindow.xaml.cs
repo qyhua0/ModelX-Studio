@@ -21,6 +21,18 @@ public partial class MainWindow : Window
         ViewSettings.DataContext = App.Settings;
     }
 
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+
+        // 标题栏由 Controls/TitleBar 自绘（底色跟左侧导航一致），系统那份已被 WindowStyle=None 去掉；
+        // 这里只把系统还负画的边框 / 预览部分也弄成深色（Win10 只支持开关，Win11 可染色）。
+        WindowTheme.ApplyDarkChrome(this, "BrushPanel");
+
+        // 无边框窗口最大化默认会把任务栏盖住、四边各裁掉一条，按工作区修正
+        WindowChromeFix.AttachMaximizeFix(this);
+    }
+
     private void Nav_Checked(object sender, RoutedEventArgs e)
     {
         if (ViewChat == null) return; // InitializeComponent 期间会提前触发

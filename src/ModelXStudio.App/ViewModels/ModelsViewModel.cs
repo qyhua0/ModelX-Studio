@@ -183,9 +183,8 @@ public partial class LocalModelVm : ObservableObject
     [RelayCommand]
     private void Delete()
     {
-        var result = MessageBox.Show($"删除模型文件「{Model.DisplayName}」（{Model.SizeText}）？",
-            "删除模型", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
-        if (result != MessageBoxResult.OK) return;
+        if (!ThemedDialog.Confirm($"删除模型文件「{Model.DisplayName}」（{Model.SizeText}）？", "删除模型", "删除"))
+            return;
 
         try
         {
@@ -194,7 +193,7 @@ public partial class LocalModelVm : ObservableObject
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"删除失败：{ex.Message}", "删除模型", MessageBoxButton.OK, MessageBoxImage.Error);
+            ThemedDialog.Error($"删除失败：{ex.Message}", "删除模型");
         }
     }
 
@@ -291,8 +290,7 @@ public partial class ModelsViewModel : ObservableObject
             App.SettingsService.Current.EnginePreference = "Cpu";
             App.SettingsService.Save();
 
-            MessageBox.Show($"GPU 引擎升级失败：{ex.Message}\n将继续使用 CPU 版。",
-                "GPU 加速", MessageBoxButton.OK, MessageBoxImage.Warning);
+            ThemedDialog.Warn($"GPU 引擎升级失败：{ex.Message}\n将继续使用 CPU 版。", "GPU 加速");
         }
     }
 
@@ -353,8 +351,7 @@ public partial class ModelsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"引擎安装失败：{ex.Message}\n\n请检查网络后重试。",
-                "安装引擎", MessageBoxButton.OK, MessageBoxImage.Error);
+            ThemedDialog.Error($"引擎安装失败：{ex.Message}\n\n请检查网络后重试。", "安装引擎");
         }
     }
 
@@ -373,7 +370,7 @@ public partial class ModelsViewModel : ObservableObject
 
         if (!url.Contains(".gguf", StringComparison.OrdinalIgnoreCase))
         {
-            MessageBox.Show("请输入以 .gguf 结尾的模型直链。", "导入模型", MessageBoxButton.OK, MessageBoxImage.Information);
+            ThemedDialog.Warn("请输入以 .gguf 结尾的模型直链。", "导入模型");
             return;
         }
 
@@ -384,8 +381,7 @@ public partial class ModelsViewModel : ObservableObject
         }
         catch (UriFormatException)
         {
-            MessageBox.Show("这个链接格式不对，请粘贴以 http:// 或 https:// 开头的 .gguf 直链。",
-                "导入模型", MessageBoxButton.OK, MessageBoxImage.Information);
+            ThemedDialog.Warn("这个链接格式不对，请粘贴以 http:// 或 https:// 开头的 .gguf 直链。", "导入模型");
             return;
         }
 
@@ -407,7 +403,7 @@ public partial class ModelsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"导入失败：{ex.Message}", "导入模型", MessageBoxButton.OK, MessageBoxImage.Error);
+            ThemedDialog.Error($"导入失败：{ex.Message}", "导入模型");
         }
     }
 }

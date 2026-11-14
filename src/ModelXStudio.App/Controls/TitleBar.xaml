@@ -1,0 +1,46 @@
+<!--
+    作者：zhenhua
+    功能：自绘标题栏（配合 WindowChrome 使用）。Windows 10 不支持用 DWM 给标题栏染色，
+          所以标题栏由我们自己画，才能和左侧导航完全同色；带最小化 / 最大化还原 / 关闭三个按钮，
+          标题文字取自所属窗口的 Title，其余空白区域仍可拖动、双击最大化。
+-->
+<UserControl x:Class="ModelXStudio.App.Controls.TitleBar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+             Height="38" Background="{StaticResource BrushPanel}"
+             BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,0,0,1"
+             UseLayoutRounding="True">
+    <Grid>
+        <TextBlock Text="{Binding Caption, RelativeSource={RelativeSource Self}}"
+                   FontSize="12.5" Foreground="{StaticResource BrushCaptionText}"
+                   VerticalAlignment="Center" Margin="14,0,0,0"
+                   TextTrimming="CharacterEllipsis" />
+
+        <!-- 按钮区要能被点到，所以标成 chrome 内的可交互区域 -->
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                    shell:WindowChrome.IsHitTestVisibleInChrome="True">
+            <Button x:Name="MinBtn" Style="{StaticResource CaptionButton}" Click="Min_Click"
+                    ToolTip="最小化" AutomationProperties.Name="最小化">
+                <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                      StrokeThickness="1" Data="M0,0 L11,0" />
+            </Button>
+            <Button x:Name="MaxBtn" Style="{StaticResource CaptionButton}" Click="Max_Click"
+                    ToolTip="最大化" AutomationProperties.Name="最大化">
+                <Grid Width="11" Height="11">
+                    <Path x:Name="MaxGlyph" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                          StrokeThickness="1" Data="M0.5,0.5 L10.5,0.5 L10.5,10.5 L0.5,10.5 Z" />
+                    <Path x:Name="RestoreGlyph" Visibility="Collapsed"
+                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                          StrokeThickness="1"
+                          Data="M0.5,3.5 L0.5,10.5 L8.5,10.5 L8.5,3.5 Z M3.5,3.5 L3.5,0.5 L10.5,0.5 L10.5,8.5 L8.5,8.5" />
+                </Grid>
+            </Button>
+            <Button x:Name="CloseBtn" Style="{StaticResource CaptionCloseButton}" Click="Close_Click"
+                    ToolTip="关闭" AutomationProperties.Name="关闭">
+                <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                      StrokeThickness="1.2" Data="M0,0 L10,10 M10,0 L0,10" />
+            </Button>
+        </StackPanel>
+    </Grid>
+</UserControl>

@@ -120,8 +120,7 @@ public partial class ServerViewModel : ObservableObject
         var path = SelectedModel?.FilePath ?? App.SettingsService.Current.LastModelPath;
         if (path == null || !File.Exists(path))
         {
-            MessageBox.Show("还没有可用模型，请先到「模型库」下载一个。",
-                "ModelX Studio", MessageBoxButton.OK, MessageBoxImage.Information);
+            ThemedDialog.Info("还没有可用模型，请先到「模型库」下载一个。");
             return;
         }
 

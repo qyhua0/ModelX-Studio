@@ -125,11 +125,11 @@ public partial class App : Application
 
     private static void ShowCrashDialog(Exception ex)
     {
-        MessageBox.Show(
+        ThemedDialog.Warn(
             $"操作出错了：{ex.Message}\n\n" +
             $"详情已记录到这个文件夹：\n{CrashLogDirectory}\n" +
             "程序会尽量继续运行。如果同样的问题反复出现，请重启程序。",
-            "ModelX Studio", MessageBoxButton.OK, MessageBoxImage.Warning);
+            "ModelX Studio");
     }
 
     /// <summary>把异常写入按天分文件的日志；日志本身写不了时绝不再抛异常。</summary>

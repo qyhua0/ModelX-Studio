@@ -34,8 +34,11 @@ public static class AppInfo
     /// </summary>
     public static string Version { get; } = ReadVersion();
 
-    /// <summary>左下角状态文案：版本 + 隐私承诺 + 作者。</summary>
-    public static string CreditLine => $"v{Version} · 数据全部留在本机 · 作者 {Author}";
+    /// <summary>左下角第一行：版本 + 隐私承诺（与作者分两行写，侧栏宽 230 会断词）。</summary>
+    public static string CreditLine => $"v{Version} · 数据全部留在本机";
+
+    /// <summary>左下角第二行：作者署名。</summary>
+    public static string AuthorLine => $"作者 {Author}";
 
     private static string ReadVersion()
     {

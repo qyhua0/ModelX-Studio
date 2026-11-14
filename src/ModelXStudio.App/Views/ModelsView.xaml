@@ -57,7 +57,7 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel>
-                        <TextBlock Text="🚀 检测到 NVIDIA 显卡，可升级到 GPU 加速引擎" FontSize="15" FontWeight="SemiBold" />
+                        <TextBlock Text="检测到 NVIDIA 显卡，可升级到 GPU 加速引擎" FontSize="15" FontWeight="SemiBold" />
                         <TextBlock Text="下载一次约 300 MB。升级后模型会加载进显存运行，生成速度通常提升数倍。"
                                    TextWrapping="Wrap" Margin="0,4,0,0"
                                    Foreground="{StaticResource BrushTextDim}" />
@@ -73,7 +73,7 @@
                     Visibility="{Binding HasHardware, Converter={StaticResource BoolVis}}">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="🖥️  本机硬件体检" FontWeight="SemiBold" FontSize="14" />
+                        <TextBlock Text="本机硬件体检" FontWeight="SemiBold" FontSize="14" />
                         <Button Content="重新检测" Margin="12,0,0,0" Padding="8,3" FontSize="11"
                                 Command="{Binding RefreshListCommand}" />
                     </StackPanel>

@@ -1,0 +1,27 @@
+<!--
+    作者：zhenhua
+    功能：WPF 主工程（net8.0-windows，输出 ModelXStudio.exe）。界面层，引用 Core 类库与
+          CommunityToolkit.Mvvm；<Version> 是全项目唯一的版本号来源，界面经 Helpers/AppInfo 读取。
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>ModelXStudio.App</RootNamespace>
+    <AssemblyName>ModelXStudio</AssemblyName>
+    <Version>0.1.0</Version>
+    <Product>ModelX Studio</Product>
+    <Copyright>ModelX</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+    <ProjectReference Include="..\ModelXStudio.Core\ModelXStudio.Core.csproj" />
+  </ItemGroup>
+
+</Project>

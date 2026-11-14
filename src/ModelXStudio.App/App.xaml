@@ -1,0 +1,15 @@
+<!--
+    作者：zhenhua
+    功能：应用定义：合并 Themes/Dark.xaml 深色主题资源字典（代码侧见 App.xaml.cs）。
+-->
+<Application x:Class="ModelXStudio.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/Dark.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

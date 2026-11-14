@@ -1,0 +1,22 @@
+<!--
+    作者：zhenhua
+    功能：核心类库工程（net8.0）。放数据模型与全部业务逻辑（引擎进程、下载、设置、硬件检测、
+          对话持久化），不依赖 WPF，便于单元测试与以后复用成命令行版本。
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>ModelXStudio.Core</RootNamespace>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\catalog.json" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
+  </ItemGroup>
+
+</Project>

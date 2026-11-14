@@ -1,0 +1,58 @@
+<!--
+    作者：zhenhua
+    功能：主窗口。左侧导航（聊天 / 模型库 / 本地服务 / 设置）+ 右侧四个页面常驻切换，
+          切页时刷新模型列表与运行状态；版本与作者信息取自 Helpers/AppInfo。
+-->
+<Window x:Class="ModelXStudio.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:app="clr-namespace:ModelXStudio.App"
+        xmlns:views="clr-namespace:ModelXStudio.App.Views"
+        Title="{x:Static app:AppInfo.WindowTitle}"
+        Height="780" Width="1220"
+        MinHeight="600" MinWidth="900"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource BrushBg}">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="200" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- 左侧导航 -->
+        <Border Grid.Column="0" Background="{StaticResource BrushPanel}"
+                BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,0,1,0">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Margin="20,24,20,28">
+                    <TextBlock Text="{x:Static app:AppInfo.Name}" FontSize="17" FontWeight="Bold"
+                               Foreground="{StaticResource BrushAccent}" />
+                    <TextBlock Text="{x:Static app:AppInfo.Tagline}" FontSize="11"
+                               Foreground="{StaticResource BrushTextDim}" Margin="0,5,0,0" />
+                </StackPanel>
+
+                <TextBlock DockPanel.Dock="Bottom" Text="{x:Static app:AppInfo.CreditLine}"
+                           FontSize="10" Foreground="{StaticResource BrushTextDim}"
+                           Margin="20,0,20,16" TextWrapping="Wrap" />
+
+                <StackPanel>
+                    <RadioButton x:Name="NavChat" Style="{StaticResource NavRadio}"
+                                 Content="💬  聊天" IsChecked="True" Checked="Nav_Checked" Tag="chat" />
+                    <RadioButton x:Name="NavModels" Style="{StaticResource NavRadio}"
+                                 Content="📚  模型库" Checked="Nav_Checked" Tag="models" />
+                    <RadioButton x:Name="NavServer" Style="{StaticResource NavRadio}"
+                                 Content="🔌  本地服务" Checked="Nav_Checked" Tag="server" />
+                    <RadioButton x:Name="NavSettings" Style="{StaticResource NavRadio}"
+                                 Content="⚙️  设置" Checked="Nav_Checked" Tag="settings" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- 内容区 -->
+        <Grid Grid.Column="1">
+            <views:ChatView x:Name="ViewChat" Visibility="Visible" />
+            <views:ModelsView x:Name="ViewModels" Visibility="Collapsed" />
+            <views:ServerView x:Name="ViewServer" Visibility="Collapsed" />
+            <views:SettingsView x:Name="ViewSettings" Visibility="Collapsed" />
+        </Grid>
+    </Grid>
+</Window>

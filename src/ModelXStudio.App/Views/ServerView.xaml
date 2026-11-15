@@ -13,7 +13,8 @@
     </UserControl.Resources>
 
     <Grid Margin="24,20">
-        <StackPanel MaxWidth="900" HorizontalAlignment="Left">
+        <!-- 铺满 + 上限 WidthPageMedium（Stretch 而不是 Center，理由见 ModelsView 同位置注释） -->
+        <StackPanel MaxWidth="{StaticResource WidthPageMedium}">
             <TextBlock Text="本地推理服务" FontSize="16" FontWeight="Bold" />
             <TextBlock Text="{Binding StatusLine}" Margin="0,4,0,12"
                        Foreground="{StaticResource BrushTextDim}" TextWrapping="Wrap" />
@@ -23,7 +24,8 @@
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="运行模型：" VerticalAlignment="Center" />
                         <ComboBox Width="280" ItemsSource="{Binding ModelOptions}"
-                                  SelectedItem="{Binding SelectedModel}" DisplayMemberPath="DisplayName" />
+                                  SelectedItem="{Binding SelectedModel}" DisplayMemberPath="DisplayName"
+                                  Tag="还没有能启动的模型，先到「模型库」下载" />
                         <Button Width="130" Margin="16,0,0,0" Command="{Binding ToggleCommand}">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource PrimaryButton}">

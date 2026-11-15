@@ -77,7 +77,8 @@
                                Foreground="{StaticResource BrushTextDim}" TextTrimming="CharacterEllipsis" />
                     <ComboBox Grid.Column="1" Width="240" VerticalAlignment="Center"
                               ItemsSource="{Binding ModelOptions}" SelectedItem="{Binding SelectedModel}"
-                              DisplayMemberPath="DisplayName" ToolTip="切换模型（需已下载）" />
+                              DisplayMemberPath="DisplayName" ToolTip="切换模型（需已下载）"
+                              Tag="还没有已下载的模型，先到「模型库」下载" />
                     <ComboBox Grid.Column="2" Width="86" Margin="8,0,0,0" VerticalAlignment="Center"
                               ItemsSource="{Binding PresetOptions}" SelectedItem="{Binding SelectedPreset}"
                               ToolTip="回复风格：快速 / 均衡 / 高质量" />
@@ -85,15 +86,17 @@
             </Border>
 
             <!-- 消息 -->
+            <!-- 对话列限宽居中（WidthChat）：不留原来 1000 那么窄，也不让一行文字横穿整块屏 -->
             <ListBox Grid.Row="1" x:Name="MessageList"
                      ItemsSource="{Binding Messages}"
                      ItemContainerStyle="{StaticResource MsgItem}"
                      Background="Transparent"
+                     MaxWidth="{StaticResource WidthChat}" HorizontalAlignment="Stretch"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      Padding="16,10">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <Border MaxWidth="760" Padding="12,9" CornerRadius="10" Margin="0,5"
+                        <Border MaxWidth="{StaticResource WidthChatBubble}" Padding="12,9" CornerRadius="10" Margin="0,5"
                                 Background="{StaticResource BrushBotBubble}">
                             <Border.Style>
                                 <Style TargetType="Border">
@@ -119,7 +122,8 @@
 
             <!-- 输入区 -->
             <Border Grid.Row="2" BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,1,0,0">
-                <Grid Margin="16,10">
+                <!-- 同样 Stretch + MaxWidth：这个 Grid 里有 * 列，Center 会让输入框按内容缩成一小条 -->
+                <Grid Margin="16,10" MaxWidth="{StaticResource WidthChat}" HorizontalAlignment="Stretch">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
@@ -127,7 +131,8 @@
                     </Grid.ColumnDefinitions>
                     <TextBox x:Name="InputBox" Grid.Column="0"
                              AcceptsReturn="True" TextWrapping="Wrap"
-                             MinHeight="42" MaxHeight="140"
+                             MinHeight="100" MaxHeight="320" Padding="10,9"
+                             VerticalContentAlignment="Top"
                              VerticalScrollBarVisibility="Auto"
                              Text="{Binding InputText, UpdateSourceTrigger=PropertyChanged}"
                              PreviewKeyDown="InputBox_PreviewKeyDown" />

@@ -13,10 +13,15 @@
         <app:BoolToVisibilityConverter x:Key="BoolVis" />
         <app:FalseToVisibilityConverter x:Key="FalseVis" />
         <app:InverseBoolConverter x:Key="InvBool" />
+        <app:ModelFitToLedConverter x:Key="FitLed" />
     </UserControl.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,20">
-        <StackPanel MaxWidth="980" HorizontalAlignment="Left">
+        <!-- 铺满窗口，只在超宽带鱼屏上封顶（上限见 Themes/Dark.xaml 的 WidthPageWide）。
+             注意别写 HorizontalAlignment="Center"：Center 是按「内容期望宽度」收缩再居中，
+             子项里有 * 列时会整页缩成一条；Stretch + MaxWidth 才是「宽度取槽位与上限的较小者，
+             被上限卡住时 WPF 自己居中」。 -->
+        <StackPanel MaxWidth="{StaticResource WidthPageWide}">
 
             <!-- 引擎缺失指引：llama.cpp 随安装包分发，缺文件时按这里指的路径放好即可 -->
             <Border Style="{StaticResource Card}" Margin="0,0,0,14"
@@ -123,8 +128,22 @@
                                         <TextBlock FontSize="11" Foreground="{StaticResource BrushTextDim}"
                                                    Text="{Binding Model.ModifiedAt, StringFormat={}{0:  yyyy-MM-dd HH:mm}}" />
                                     </StackPanel>
-                                    <TextBlock Text="{Binding FitText}" FontSize="11" Margin="0,3,0,0"
-                                               Foreground="{StaticResource BrushTextDim}" />
+                                    <!-- 适配等级：小绿灯（等级 Unknown 时整颗不显示，见 Dark.xaml 的 StatusLed） -->
+                                    <Grid Margin="0,3,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid Style="{StaticResource StatusLed}" Width="11" Height="11"
+                                              VerticalAlignment="Top" Margin="1,2,0,0">
+                                            <Ellipse Fill="{Binding FitLevel, Converter={StaticResource FitLed}, ConverterParameter=halo}" />
+                                            <Ellipse Width="7" Height="7"
+                                                     Fill="{Binding FitLevel, Converter={StaticResource FitLed}}" />
+                                        </Grid>
+                                        <TextBlock Grid.Column="1" Text="{Binding FitText}" FontSize="11"
+                                                   Margin="6,0,0,0" TextWrapping="Wrap"
+                                                   Foreground="{StaticResource BrushTextDim}" />
+                                    </Grid>
                                 </StackPanel>
                                 <Border Grid.Column="1" Background="{StaticResource BrushSuccess}"
                                         CornerRadius="4" Padding="8,3" VerticalAlignment="Center" Margin="0,0,10,0"
@@ -170,19 +189,55 @@
                                                Foreground="{StaticResource BrushAccent}" />
                                     <TextBlock Text="{Binding TagsText}" FontSize="11" Margin="0,2,0,0"
                                                Foreground="{StaticResource BrushTextDim}" />
-                                    <TextBlock Text="{Binding FitText}" FontSize="12" Margin="0,4,0,0"
-                                               TextWrapping="Wrap" />
+                                    <!-- 适配等级指示灯：绿＝能整份装进显存（就是原本想用 🟢 的那个点，
+                                         emoji 在 WPF 里只会画成灰白空心圈，所以改成真的矢量小灯） -->
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid Style="{StaticResource StatusLed}" VerticalAlignment="Top"
+                                              Margin="1,3,0,0">
+                                            <Ellipse Fill="{Binding FitLevel, Converter={StaticResource FitLed}, ConverterParameter=halo}" />
+                                            <Ellipse Width="8" Height="8"
+                                                     Fill="{Binding FitLevel, Converter={StaticResource FitLed}}" />
+                                        </Grid>
+                                        <TextBlock Grid.Column="1" Text="{Binding FitText}" FontSize="12"
+                                                   Margin="7,0,0,0" TextWrapping="Wrap" />
+                                    </Grid>
                                 </StackPanel>
 
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
-                                    <TextBlock Text="{Binding StateText}" FontSize="12" Margin="0,0,0,6"
-                                               HorizontalAlignment="Right"
-                                               Foreground="{StaticResource BrushTextDim}" />
+                                <!-- 右侧整块锁定宽度：下载中百分比与速度每秒变好几次，宽度跟着内容走的话
+                                     整个卡片右侧会左右跳，数字也看不清。两个数字各占固定宽度并右对齐，
+                                     位数变化只动自己那一格的左边缘。 -->
+                                <StackPanel Grid.Column="1" Width="252" VerticalAlignment="Center">
+                                    <Grid Height="20" Margin="0,0,0,4">
+                                        <!-- 未下载 / 已下载 / 已取消 / 失败：整句右对齐，太长就换行 -->
+                                        <TextBlock Text="{Binding StateText}" FontSize="12"
+                                                   TextWrapping="Wrap" TextAlignment="Right"
+                                                   VerticalAlignment="Center"
+                                                   Visibility="{Binding IsDownloading, Converter={StaticResource FalseVis}}"
+                                                   Foreground="{StaticResource BrushTextDim}" />
+                                        <!-- 下载中：等宽数字，不跟着位数跑 -->
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center"
+                                                    Visibility="{Binding IsDownloading, Converter={StaticResource BoolVis}}">
+                                            <TextBlock Text="{Binding PercentText}" Width="46"
+                                                       FontFamily="Consolas, Microsoft YaHei UI"
+                                                       TextAlignment="Right" />
+                                            <TextBlock Text="·" Margin="5,0"
+                                                       Foreground="{StaticResource BrushTextFaint}" />
+                                            <TextBlock Text="{Binding SpeedText}" Width="82"
+                                                       FontFamily="Consolas, Microsoft YaHei UI"
+                                                       TextAlignment="Right" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <!-- 两个按钮同宽，下载<->取消切换时左侧边也不动 -->
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                         <Button Content="下载" Style="{StaticResource PrimaryButton}" Width="86"
                                                 Visibility="{Binding IsDownloading, Converter={StaticResource FalseVis}}"
                                                 Command="{Binding DownloadCommand}" />
-                                        <Button Content="取消" Width="70"
+                                        <Button Content="取消" Width="86"
                                                 Visibility="{Binding IsDownloading, Converter={StaticResource BoolVis}}"
                                                 Command="{Binding CancelDownloadCommand}" />
                                     </StackPanel>
@@ -194,6 +249,8 @@
 
                                 <ComboBox Grid.Row="2" Grid.ColumnSpan="2" Width="460" HorizontalAlignment="Left"
                                           Margin="0,10,0,0" ItemsSource="{Binding Options}"
+                                          DisplayMemberPath="DisplayText"
+                                          Tag="这个模型暂时没有可选的下载文件"
                                           SelectedItem="{Binding SelectedOption}" />
 
                                 <ProgressBar Grid.Row="3" Grid.ColumnSpan="2" Height="6" Margin="0,10,0,0"

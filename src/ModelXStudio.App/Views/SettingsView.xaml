@@ -11,7 +11,9 @@
              xmlns:app="clr-namespace:ModelXStudio.App">
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,20">
-        <StackPanel MaxWidth="760" HorizontalAlignment="Left">
+        <!-- 表单上限 WidthPageForm；用 Stretch 不用 Center：Center 会让带 * 列的行按内容收缩，
+             整页缩成中间一条，两边空得更多（就是之前「左右一大片空白」的真凶）。 -->
+        <StackPanel MaxWidth="{StaticResource WidthPageForm}">
             <TextBlock Text="设置" FontSize="16" FontWeight="Bold" Margin="0,0,0,12" />
 
             <Border Style="{StaticResource Card}">

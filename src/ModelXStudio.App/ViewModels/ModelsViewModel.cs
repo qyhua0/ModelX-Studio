@@ -51,6 +51,15 @@ public partial class CatalogCardVm : ObservableObject
     [ObservableProperty]
     private double _percent;
 
+    /// <summary>下载百分比文字（如「57%」，拿不到总大小时写「下载中」）。与 Percent 分开绑：
+    /// 界面给这一格固定宽度，数字位数变化就不会推着整行左右抖。</summary>
+    [ObservableProperty]
+    private string _percentText = "";
+
+    /// <summary>下载速度文字（如「12.4 MB/s」），同上单独绑、单独占固定宽度。</summary>
+    [ObservableProperty]
+    private string _speedText = "";
+
     [ObservableProperty]
     private bool _isDownloading;
 
@@ -76,11 +85,17 @@ public partial class CatalogCardVm : ObservableObject
     [ObservableProperty]
     private string _fitText = "";
 
+    /// <summary>适配等级，界面用它画指示灯（绿/蓝/黄/红/灰），Text 只负责说原因。</summary>
+    [ObservableProperty]
+    private ModelFit _fitLevel = ModelFit.Unknown;
+
     /// <summary>根据本机显卡/内存给当前选中量化档打适配标签。</summary>
     public void UpdateFit()
     {
         var size = SelectedOption?.Model.ApproxBytes ?? 0;
-        FitText = ModelRecommender.Evaluate(size, App.SystemInfo.Hardware).Text;
+        var (fit, text) = ModelRecommender.Evaluate(size, App.SystemInfo.Hardware);
+        FitLevel = fit;
+        FitText = text;
     }
 
     partial void OnSelectedOptionChanged(QuantOptionVm? value)
@@ -105,6 +120,8 @@ public partial class CatalogCardVm : ObservableObject
         IsDownloaded = TargetPath.Length > 0 && File.Exists(TargetPath);
         StateText = IsDownloaded ? "✓ 已下载" : "未下载";
         Percent = 0;
+        PercentText = "";
+        SpeedText = "";
     }
 
     [RelayCommand]
@@ -123,13 +140,14 @@ public partial class CatalogCardVm : ObservableObject
         Percent = 0;
         _cts = new CancellationTokenSource();
 
-        // Progress<T> 自带「创建时所在线程（界面线程）」的调度，回调里不需要再 Dispatcher.Invoke
+        // Progress<T> 自带「创建时所在线程（界面线程）」的调度，回调里不需要再 Dispatcher.Invoke。
+        // 百分比和速度各绑各的（不再拼成一句 StateText）：界面给它们各自固定宽度，
+        // 数字位数变了只动自己那一格的左边缘，不会整行左右跳。
         var progress = new Progress<DownloadProgress>(p =>
         {
             Percent = p.Percent ?? 0;
-            StateText = p.TotalBytes > 0
-                ? $"下载中 {p.Percent:0}% · {p.SpeedText}"
-                : $"下载中 {p.ReceivedBytes / 1024.0 / 1024:0} MB · {p.SpeedText}";
+            PercentText = p.Percent is double pc ? $"{pc:0}%" : "下载中";
+            SpeedText = p.SpeedText;
         });
 
         try
@@ -150,6 +168,8 @@ public partial class CatalogCardVm : ObservableObject
         finally
         {
             IsDownloading = false;
+            PercentText = "";
+            SpeedText = "";
             _cts?.Dispose();
             _cts = null;
             _onFinished();
@@ -170,14 +190,22 @@ public partial class LocalModelVm : ObservableObject
     [ObservableProperty]
     private string _fitText = "";
 
+    /// <summary>适配等级，界面用它画指示灯（与精选模型卡片同一表示）。</summary>
+    [ObservableProperty]
+    private ModelFit _fitLevel = ModelFit.Unknown;
+
     public LocalModelVm(LocalModel model)
     {
         Model = model;
         UpdateFit();
     }
 
-    public void UpdateFit() =>
-        FitText = ModelRecommender.Evaluate(Model.SizeBytes, App.SystemInfo.Hardware).Text;
+    public void UpdateFit()
+    {
+        var (fit, text) = ModelRecommender.Evaluate(Model.SizeBytes, App.SystemInfo.Hardware);
+        FitLevel = fit;
+        FitText = text;
+    }
 
     [RelayCommand]
     private Task Load() => App.Models.LoadModelAsync(Model.FilePath);

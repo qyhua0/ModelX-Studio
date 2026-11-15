@@ -57,9 +57,18 @@ public sealed class SystemHardware
         Gpus.Where(g => g.IsDiscrete && g.VramGb is > 0).MaxBy(g => g.VramGb!.Value);
 }
 
+/// <summary>
+/// 模型与本机硬件的适配等级。界面用它画「指示灯」（Themes/Dark.xaml 的 Led*Core / Led*Halo，
+/// 由 Converters.ModelFitToLedConverter 映射）：绿＝能整份塞进显存、蓝＝内存跑没问题、
+/// 黄＝紧张、红＝跑不动、灰＝还没检测到硬件。
+/// </summary>
 public enum ModelFit { GpuFast, CpuOk, Tight, TooBig, Unknown }
 
-/// <summary>根据显存/内存给模型打「适配等级」并生成给普通用户看的建议文案。</summary>
+/// <summary>
+/// 根据显存/内存给模型打「适配等级」并生成给普通用户看的建议文案。
+/// 注意：文案里不要放 🟢🔵🟡⚠️ 这类 emoji —— WPF 的文字渲染不支持彩色字体（COLR），
+/// 它们只会被画成一个灰白空心圈或方块，看着像「灯没亮」。等级请交给 Fit 字段，由界面画真指示灯。
+/// </summary>
 public static class ModelRecommender
 {
     private const double GiB = 1024.0 * 1024 * 1024;
@@ -72,16 +81,16 @@ public static class ModelRecommender
         var best = hw.BestDiscrete;
 
         if (best?.VramGb != null && sizeGb <= best.VramGb * 0.9)
-            return (ModelFit.GpuFast, "🟢 可全部装入显卡显存，GPU 加速速度最快");
+            return (ModelFit.GpuFast, "可全部装入显卡显存，GPU 加速速度最快");
 
         if (hw.RamGb > 0 && sizeGb <= hw.RamGb * 0.6)
-            return (ModelFit.CpuOk, "🔵 内存足够，CPU 可流畅运行");
+            return (ModelFit.CpuOk, "内存足够，CPU 可流畅运行");
 
         if (hw.RamGb > 0 && sizeGb <= hw.RamGb * 0.85)
-            return (ModelFit.Tight, "🟡 内存偏紧张，建议换更小的量化档");
+            return (ModelFit.Tight, "内存偏紧张，建议换更小的量化档");
 
         if (hw.RamGb > 0)
-            return (ModelFit.TooBig, "⚠️ 超出本机能力，不建议下载");
+            return (ModelFit.TooBig, "超出本机能力，不建议下载");
 
         return (ModelFit.Unknown, "");
     }

@@ -2,7 +2,9 @@
 // 作者：zhenhua
 // 功能：界面值转换器：bool → Visibility（BoolVis）、false → Visibility（FalseVis）、
 //       true → false（InvBool，绑定 IsEnabled 用，例如模型运行中禁止切换）、
-//       ModelFit → 指示灯画刷（FitLed，模型适配等级的小绿灯）。
+//       ModelFit → 指示灯画刷（FitLed，模型适配等级的小绿灯）、
+//       CardStateLevel → 状态文字颜色（StateBrush，下载卡片上「下好了 / 要拿主意 / 出错」三种语气）、
+//       非空字符串 → 可见（HasText，下载中/失败那一行提示条的开关）。
 // 许可：ModelX Studio 非商业使用许可 1.0（见仓库根 LICENSE）。上游第三方组件（llama.cpp 等）按各自 MIT 许可授权。
 // =====================================================================
 
@@ -10,6 +12,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
+using ModelXStudio.App.ViewModels;
 using ModelXStudio.Core.Models;
 
 namespace ModelXStudio.App;
@@ -43,6 +46,51 @@ public sealed class InverseBoolConverter : IValueConverter
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => value is not true;
+}
+
+/// <summary>非空字符串 → Visible，空/null → Collapsed（绑定提示条、进度的有无）。</summary>
+public sealed class StringToVisibilityConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => string.IsNullOrWhiteSpace(value as string) ? Visibility.Collapsed : Visibility.Visible;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>
+/// CardStateLevel（下载卡片的状态语义）→ 文字颜色。
+/// 为什么不只靠文字：“✓ 已下载”与“下载失败：…”以前同一种灰色，扫一眼分不出来，
+/// 用户就会以为「下完了还写下载」。绿/橙/红三色把三种语气拉开，颜色在 Themes/Dark.xaml。
+/// </summary>
+public sealed class CardStateLevelToBrushConverter : IValueConverter
+{
+    private static readonly Dictionary<CardStateLevel, string> BrushKeys = new()
+    {
+        [CardStateLevel.Info] = "BrushTextDim",
+        [CardStateLevel.Success] = "BrushSuccess",
+        [CardStateLevel.Warning] = "BrushWarning",
+        [CardStateLevel.Error] = "BrushDanger",
+    };
+
+    private static readonly Dictionary<CardStateLevel, Color> FallbackColors = new()
+    {
+        [CardStateLevel.Info] = Color.FromRgb(0xA0, 0xA8, 0xB4),
+        [CardStateLevel.Success] = Color.FromRgb(0x52, 0xB7, 0x88),
+        [CardStateLevel.Warning] = Color.FromRgb(0xD9, 0xA0, 0x5B),
+        [CardStateLevel.Error] = Color.FromRgb(0xDE, 0x6B, 0x6E),
+    };
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var level = value is CardStateLevel l ? l : CardStateLevel.Info;
+        var key = BrushKeys.TryGetValue(level, out var k) ? k : "BrushTextDim";
+        if (Application.Current?.TryFindResource(key) is Brush found) return found;
+        return new SolidColorBrush(FallbackColors.TryGetValue(level, out var c) ? c : Colors.Gray);
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
 }
 
 /// <summary>

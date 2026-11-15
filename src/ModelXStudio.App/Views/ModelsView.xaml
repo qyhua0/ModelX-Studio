@@ -14,6 +14,8 @@
         <app:FalseToVisibilityConverter x:Key="FalseVis" />
         <app:InverseBoolConverter x:Key="InvBool" />
         <app:ModelFitToLedConverter x:Key="FitLed" />
+        <app:StringToVisibilityConverter x:Key="HasText" />
+        <app:CardStateLevelToBrushConverter x:Key="StateBrush" />
     </UserControl.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,20">
@@ -89,11 +91,21 @@
             <StackPanel Orientation="Horizontal" Margin="2,4,0,4">
                 <TextBlock Text="本地模型" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" />
                 <Button Content="刷新" Margin="14,0,0,0" Padding="10,4" Command="{Binding RefreshListCommand}" />
-                <TextBox Width="320" Margin="16,0,0,0" Text="{Binding ImportUrl}"
+                <TextBox Width="280" Margin="16,0,0,0" Text="{Binding ImportUrl}"
+                         IsEnabled="{Binding IsImporting, Converter={StaticResource InvBool}}"
                          ToolTip="粘贴任意 .gguf 模型直链导入" />
+                <!-- 导入以前不能取消，进度还写到「缺引擎」那一行里，导完了那里挂着「导入中 100%」
+                     像没下完；现在进度自己一行，按钮导入中变「取消导入」。 -->
                 <Button Content="导入链接" Margin="8,0,0,0" Padding="10,4"
+                        Visibility="{Binding IsImporting, Converter={StaticResource FalseVis}}"
                         Command="{Binding ImportFromUrlCommand}" />
+                <Button Content="取消导入" Margin="8,0,0,0" Padding="10,4"
+                        Visibility="{Binding IsImporting, Converter={StaticResource BoolVis}}"
+                        Command="{Binding CancelImportCommand}" />
             </StackPanel>
+            <TextBlock Text="{Binding ImportStatusText}" Margin="2,4,0,0" FontSize="12" TextWrapping="Wrap"
+                       Visibility="{Binding ImportStatusText, Converter={StaticResource HasText}}"
+                       Foreground="{StaticResource BrushTextDim}" />
             <TextBlock Margin="2,6" Foreground="{StaticResource BrushTextDim}"
                        Text="还没有下载模型，从下面的精选模型开始吧 ↓">
                 <TextBlock.Style>
@@ -217,7 +229,7 @@
                                                    TextWrapping="Wrap" TextAlignment="Right"
                                                    VerticalAlignment="Center"
                                                    Visibility="{Binding IsDownloading, Converter={StaticResource FalseVis}}"
-                                                   Foreground="{StaticResource BrushTextDim}" />
+                                                   Foreground="{Binding StateLevel, Converter={StaticResource StateBrush}}" />
                                         <!-- 下载中：等宽数字，不跟着位数跑 -->
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
                                                     VerticalAlignment="Center"
@@ -232,14 +244,27 @@
                                                        TextAlignment="Right" />
                                         </StackPanel>
                                     </Grid>
-                                    <!-- 两个按钮同宽，下载<->取消切换时左侧边也不动 -->
+                                    <!-- 按钮跟着磁盘上的事实走，不跟「点过一下」走：文件已在本地就只剩
+                                         「打开目录 / 重新下载」，不会再出现「下完了还写下载」；
+                                         有残片则变「继续下载」并多一个「清除残片」。宽度固定，切字不跳位。 -->
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                        <Button Content="下载" Style="{StaticResource PrimaryButton}" Width="86"
-                                                Visibility="{Binding IsDownloading, Converter={StaticResource FalseVis}}"
+                                        <Button Content="{Binding ActionText}" Style="{StaticResource PrimaryButton}" Width="86"
+                                                Visibility="{Binding HasPrimaryAction, Converter={StaticResource BoolVis}}"
                                                 Command="{Binding DownloadCommand}" />
+                                        <Button Content="清除残片" Width="74" Margin="0,0,8,0" Padding="10,4"
+                                                ToolTip="删掉未完成的 .part 文件，下次要从头下载"
+                                                Visibility="{Binding IsResumable, Converter={StaticResource BoolVis}}"
+                                                Command="{Binding ClearPartialCommand}" />
                                         <Button Content="取消" Width="86"
                                                 Visibility="{Binding IsDownloading, Converter={StaticResource BoolVis}}"
                                                 Command="{Binding CancelDownloadCommand}" />
+                                        <Button Content="打开目录" Width="74" Margin="0,0,8,0" Padding="10,4"
+                                                ToolTip="在资源管理器里选中这个模型文件"
+                                                Visibility="{Binding IsDownloaded, Converter={StaticResource BoolVis}}"
+                                                Command="{Binding ShowFileCommand}" />
+                                        <Button Content="重新下载" Width="74" Padding="10,4"
+                                                Visibility="{Binding IsDownloaded, Converter={StaticResource BoolVis}}"
+                                                Command="{Binding DownloadCommand}" />
                                     </StackPanel>
                                 </StackPanel>
 
@@ -251,6 +276,7 @@
                                           Margin="0,10,0,0" ItemsSource="{Binding Options}"
                                           DisplayMemberPath="DisplayText"
                                           Tag="这个模型暂时没有可选的下载文件"
+                                          IsEnabled="{Binding IsDownloading, Converter={StaticResource InvBool}}"
                                           SelectedItem="{Binding SelectedOption}" />
 
                                 <ProgressBar Grid.Row="3" Grid.ColumnSpan="2" Height="6" Margin="0,10,0,0"

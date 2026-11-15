@@ -34,11 +34,28 @@ public static class AppInfo
     /// </summary>
     public static string Version { get; } = ReadVersion();
 
-    /// <summary>左下角第一行：版本 + 隐私承诺（与作者分两行写，侧栏宽 230 会断词）。</summary>
+    /// <summary>左下角第一行：版本 + 隐私承诺（侧栏只有 200 宽，分三行写才不会断词）。</summary>
     public static string CreditLine => $"v{Version} · 数据全部留在本机";
 
     /// <summary>左下角第二行：作者署名。</summary>
     public static string AuthorLine => $"作者 {Author}";
+
+    /// <summary>许可证名称，完整条款在仓库根目录 LICENSE。</summary>
+    public const string LicenseName = "ModelX Studio 非商业使用许可 1.0";
+
+    /// <summary>左下角第三行：致谢 llama.cpp + 非商用声明（设置页有更完整的说法）。</summary>
+    public const string LicenseLine = "基于 llama.cpp（MIT）· 仅限非商业使用";
+
+    /// <summary>
+    /// 设置页底部的完整致谢与许可说明。写在这里而不是散落各页，改文案只需改一处。
+    /// </summary>
+    public const string CreditNotice =
+        "致谢：本项目的推理能力来自开源项目 llama.cpp（GGML 社区，MIT 许可），"
+        + "模型文件由 Hugging Face / hf-mirror 等公开镜像分发。\n"
+        + "许可：本项目开源，但采用「非商业使用许可」——学习、修改、转发都可以，"
+        + "不得用于任何商业目的（包括但不限于商用售卖、企业内商用部署、付费服务）。"
+        + "完整条款见仓库根目录 LICENSE 文件；上游 llama.cpp 等第三方组件仍按各自的 MIT 许可使用。\n"
+        + "提醒：模型权重不属于本项目，请遵守各自模型的许可与使用条款。";
 
     private static string ReadVersion()
     {

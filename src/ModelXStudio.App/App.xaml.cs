@@ -3,6 +3,7 @@
 // 功能：WPF 应用入口。创建核心服务与四个页面 ViewModel（进程内单例，供各界面直接取用），
 //       启动时加载设置、异步检测硬件、按设置自动加载上次使用的模型，
 //       并兜住所有未处理异常（说人话提示 + 落盘日志），退出时确保 llama-server 进程被结束。
+// 许可：ModelX Studio 非商业使用许可 1.0（见仓库根 LICENSE）。上游第三方组件（llama.cpp 等）按各自 MIT 许可授权。
 // =====================================================================
 
 using System.IO;
@@ -52,7 +53,7 @@ public partial class App : Application
         Scanner = new LocalModelScanner();
 
         SystemInfo = new SystemInfoService();
-        Engine = new EngineManager(SettingsService, DownloadService, SystemInfo);
+        Engine = new EngineManager(SettingsService, SystemInfo);
         FireAndForget(() => SystemInfo.DetectAsync(), "检测本机硬件");
 
         Models = new ModelsViewModel();

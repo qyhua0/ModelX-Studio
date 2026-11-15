@@ -2,6 +2,7 @@
     作者：zhenhua
     功能：本地服务页界面：服务开关与状态、运行中的模型、OpenAI 兼容地址与 curl 示例复制、
           引擎运行日志展示（供排查模型加载失败）。
+    许可：ModelX Studio 非商业使用许可 1.0（见仓库根 LICENSE）。上游第三方组件（llama.cpp 等）按各自 MIT 许可授权。
 -->
 <UserControl x:Class="ModelXStudio.App.Views.ServerView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"

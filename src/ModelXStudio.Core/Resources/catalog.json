@@ -1,6 +1,6 @@
 {
   "_说明": "作者：zhenhua —— 内置精选模型目录数据：面向普通用户挑的若干开源 GGUF 模型，含仓库地址、来源站点、中文介绍、标签、推荐内存与推荐量化档；改这个文件即可增删「模型库」页面的卡片，不需要改代码（结构见 Models/Catalog.cs）。",
-
+  "_许可": "本文件只是数据，随 ModelX Studio 分发（禁止商用，见仓库根 LICENSE）。其中列出的模型权重不属于本项目，各自遵守原始模型许可（部分模型同样禁止商用）。",
   "models": [
     {
       "id": "qwen3-4b",
@@ -8,13 +8,25 @@
       "tagline": "推荐首选 · 小巧全能，中文对话流畅",
       "description": "阿里通义千问 4B 指令模型，日常问答、写作、翻译、代码都够用，普通笔记本即可流畅运行。",
       "recommendedRamGb": 8,
-      "tags": ["中文强", "日常问答", "写作"],
+      "tags": [
+        "中文强",
+        "日常问答",
+        "写作"
+      ],
       "source": "huggingface",
       "repo": "Qwen/Qwen3-4B-GGUF",
       "recommendedFile": "Qwen3-4B-Q4_K_M.gguf",
       "files": [
-        { "filename": "Qwen3-4B-Q4_K_M.gguf", "approxBytes": 2500000000, "note": "推荐：体积与质量均衡" },
-        { "filename": "Qwen3-4B-Q8_0.gguf", "approxBytes": 4300000000, "note": "更高质量，内存需 8GB 以上" }
+        {
+          "filename": "Qwen3-4B-Q4_K_M.gguf",
+          "approxBytes": 2500000000,
+          "note": "推荐：体积与质量均衡"
+        },
+        {
+          "filename": "Qwen3-4B-Q8_0.gguf",
+          "approxBytes": 4300000000,
+          "note": "更高质量，内存需 8GB 以上"
+        }
       ]
     },
     {
@@ -23,12 +35,19 @@
       "tagline": "老电脑也能跑 · 约 1.2GB",
       "description": "超小体积的通义千问，适合 4GB 内存的老电脑或想快速体验的用户。",
       "recommendedRamGb": 4,
-      "tags": ["超轻量", "老电脑友好"],
+      "tags": [
+        "超轻量",
+        "老电脑友好"
+      ],
       "source": "huggingface",
       "repo": "Qwen/Qwen3-1.7B-GGUF",
       "recommendedFile": "Qwen3-1.7B-Q4_K_M.gguf",
       "files": [
-        { "filename": "Qwen3-1.7B-Q4_K_M.gguf", "approxBytes": 1300000000, "note": "推荐" }
+        {
+          "filename": "Qwen3-1.7B-Q4_K_M.gguf",
+          "approxBytes": 1300000000,
+          "note": "推荐"
+        }
       ]
     },
     {
@@ -37,13 +56,25 @@
       "tagline": "质量更好 · 适合 16GB 内存",
       "description": "8B 档位指令模型，复杂问题、长文写作、代码能力明显更强。",
       "recommendedRamGb": 16,
-      "tags": ["高质量", "长文写作", "代码"],
+      "tags": [
+        "高质量",
+        "长文写作",
+        "代码"
+      ],
       "source": "huggingface",
       "repo": "Qwen/Qwen3-8B-GGUF",
       "recommendedFile": "Qwen3-8B-Q4_K_M.gguf",
       "files": [
-        { "filename": "Qwen3-8B-Q4_K_M.gguf", "approxBytes": 5000000000, "note": "推荐" },
-        { "filename": "Qwen3-8B-Q8_0.gguf", "approxBytes": 8500000000, "note": "高质量，需 16GB 以上内存" }
+        {
+          "filename": "Qwen3-8B-Q4_K_M.gguf",
+          "approxBytes": 5000000000,
+          "note": "推荐"
+        },
+        {
+          "filename": "Qwen3-8B-Q8_0.gguf",
+          "approxBytes": 8500000000,
+          "note": "高质量，需 16GB 以上内存"
+        }
       ]
     },
     {
@@ -52,12 +83,19 @@
       "tagline": "接近专业助手水平 · 需 32GB 内存",
       "description": "14B 档位，推理与写作能力更强，适合 32GB 内存的高配电脑。",
       "recommendedRamGb": 32,
-      "tags": ["旗舰体验", "推理强"],
+      "tags": [
+        "旗舰体验",
+        "推理强"
+      ],
       "source": "huggingface",
       "repo": "Qwen/Qwen3-14B-GGUF",
       "recommendedFile": "Qwen3-14B-Q4_K_M.gguf",
       "files": [
-        { "filename": "Qwen3-14B-Q4_K_M.gguf", "approxBytes": 9000000000, "note": "推荐" }
+        {
+          "filename": "Qwen3-14B-Q4_K_M.gguf",
+          "approxBytes": 9000000000,
+          "note": "推荐"
+        }
       ]
     },
     {
@@ -66,12 +104,20 @@
       "tagline": "会思考的模型 · 擅长数学与推理",
       "description": "DeepSeek R1 推理模型蒸馏版，回答前会展示思考过程，适合数学、逻辑、步骤类问题。",
       "recommendedRamGb": 16,
-      "tags": ["推理", "数学", "思考过程"],
+      "tags": [
+        "推理",
+        "数学",
+        "思考过程"
+      ],
       "source": "huggingface",
       "repo": "unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF",
       "recommendedFile": "DeepSeek-R1-0528-Qwen3-8B-Q4_K_M.gguf",
       "files": [
-        { "filename": "DeepSeek-R1-0528-Qwen3-8B-Q4_K_M.gguf", "approxBytes": 5000000000, "note": "推荐" }
+        {
+          "filename": "DeepSeek-R1-0528-Qwen3-8B-Q4_K_M.gguf",
+          "approxBytes": 5000000000,
+          "note": "推荐"
+        }
       ]
     },
     {
@@ -80,12 +126,19 @@
       "tagline": "多语言能力强 · 支持看图",
       "description": "谷歌 Gemma 3 指令模型，多语言与图文理解能力好，体积适中。",
       "recommendedRamGb": 8,
-      "tags": ["多语言", "多模态"],
+      "tags": [
+        "多语言",
+        "多模态"
+      ],
       "source": "huggingface",
       "repo": "unsloth/gemma-3-4b-it-GGUF",
       "recommendedFile": "gemma-3-4b-it-Q4_K_M.gguf",
       "files": [
-        { "filename": "gemma-3-4b-it-Q4_K_M.gguf", "approxBytes": 2500000000, "note": "推荐" }
+        {
+          "filename": "gemma-3-4b-it-Q4_K_M.gguf",
+          "approxBytes": 2500000000,
+          "note": "推荐"
+        }
       ]
     },
     {
@@ -94,12 +147,19 @@
       "tagline": "经典开源 · 英文能力强",
       "description": "Meta Llama 3.2 指令模型，英文问答与摘要表现出色，体积小速度快。",
       "recommendedRamGb": 8,
-      "tags": ["英文强", "速度快"],
+      "tags": [
+        "英文强",
+        "速度快"
+      ],
       "source": "huggingface",
       "repo": "bartowski/Llama-3.2-3B-Instruct-GGUF",
       "recommendedFile": "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
       "files": [
-        { "filename": "Llama-3.2-3B-Instruct-Q4_K_M.gguf", "approxBytes": 2000000000, "note": "推荐" }
+        {
+          "filename": "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+          "approxBytes": 2000000000,
+          "note": "推荐"
+        }
       ]
     },
     {
@@ -108,12 +168,19 @@
       "tagline": "小体积高智商 · 逻辑与代码",
       "description": "微软 Phi-4 mini，在 4B 级别里推理与代码能力名列前茅。",
       "recommendedRamGb": 8,
-      "tags": ["代码", "逻辑"],
+      "tags": [
+        "代码",
+        "逻辑"
+      ],
       "source": "huggingface",
       "repo": "microsoft/Phi-4-mini-instruct-GGUF",
       "recommendedFile": "Phi-4-mini-instruct-Q4_K_M.gguf",
       "files": [
-        { "filename": "Phi-4-mini-instruct-Q4_K_M.gguf", "approxBytes": 2200000000, "note": "推荐" }
+        {
+          "filename": "Phi-4-mini-instruct-Q4_K_M.gguf",
+          "approxBytes": 2200000000,
+          "note": "推荐"
+        }
       ]
     },
     {
@@ -122,12 +189,19 @@
       "tagline": "国内网络下载更快",
       "description": "与 Qwen3-8B 相同模型，从魔搭 ModelScope 下载，国内网络速度更快。",
       "recommendedRamGb": 16,
-      "tags": ["国内加速", "ModelScope"],
+      "tags": [
+        "国内加速",
+        "ModelScope"
+      ],
       "source": "modelscope",
       "repo": "unsloth/Qwen3-8B-GGUF",
       "recommendedFile": "Qwen3-8B-Q4_K_M.gguf",
       "files": [
-        { "filename": "Qwen3-8B-Q4_K_M.gguf", "approxBytes": 5000000000, "note": "推荐" }
+        {
+          "filename": "Qwen3-8B-Q4_K_M.gguf",
+          "approxBytes": 5000000000,
+          "note": "推荐"
+        }
       ]
     }
   ]

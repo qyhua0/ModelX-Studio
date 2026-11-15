@@ -3,6 +3,7 @@
 // 功能：应用内消息框的实现：静态入口 Info / Success / Warn / Error / Confirm，
 //       统一深色外观与按钮行为（Enter 确定、Esc 取消），并在主题/资源异常时
 //       退回系统 MessageBox，保证「出错提示」本身绝不会再次崩溃。
+// 许可：ModelX Studio 非商业使用许可 1.0（见仓库根 LICENSE）。上游第三方组件（llama.cpp 等）按各自 MIT 许可授权。
 // =====================================================================
 
 using System.Linq;

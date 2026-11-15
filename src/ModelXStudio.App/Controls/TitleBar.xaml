@@ -3,6 +3,7 @@
     功能：自绘标题栏（配合 WindowChrome 使用）。Windows 10 不支持用 DWM 给标题栏染色，
           所以标题栏由我们自己画，才能和左侧导航完全同色；带最小化 / 最大化还原 / 关闭三个按钮，
           标题文字取自所属窗口的 Title，其余空白区域仍可拖动、双击最大化。
+    许可：ModelX Studio 非商业使用许可 1.0（见仓库根 LICENSE）。上游第三方组件（llama.cpp 等）按各自 MIT 许可授权。
 -->
 <UserControl x:Class="ModelXStudio.App.Controls.TitleBar"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"

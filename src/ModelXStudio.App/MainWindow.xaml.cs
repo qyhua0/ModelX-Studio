@@ -2,6 +2,7 @@
 // 作者：zhenhua
 // 功能：主窗口代码后台：给四个页面挂 DataContext；导航单选按钮切换页面显隐，
 //       并在切页时刷新对应数据（模型列表 / 运行中的服务）。
+// 许可：ModelX Studio 非商业使用许可 1.0（见仓库根 LICENSE）。上游第三方组件（llama.cpp 等）按各自 MIT 许可授权。
 // =====================================================================
 
 using System.Windows;
@@ -54,6 +55,9 @@ public partial class MainWindow : Window
                 break;
             case "server":
                 App.Server.RefreshModelOptions();
+                break;
+            case "settings":
+                App.Settings.RefreshEngineInfo();   // 引擎可能在别处被补齐了，切页时重读一次
                 break;
         }
     }

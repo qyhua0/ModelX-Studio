@@ -2,6 +2,7 @@
 // 作者：zhenhua
 // 功能：界面值转换器：bool → Visibility（BoolVis）、false → Visibility（FalseVis）、
 //       true → false（InvBool，绑定 IsEnabled 用，例如模型运行中禁止切换）。
+// 许可：ModelX Studio 非商业使用许可 1.0（见仓库根 LICENSE）。上游第三方组件（llama.cpp 等）按各自 MIT 许可授权。
 // =====================================================================
 
 using System.Globalization;

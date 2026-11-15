@@ -2,6 +2,7 @@
 // 作者：zhenhua
 // 功能：读取内嵌资源 catalog.json 得到精选模型目录，并按来源站点（huggingface / modelscope）
 //       与设置里的镜像域名拼出可直接下载的模型直链。
+// 许可：ModelX Studio 非商业使用许可 1.0（见仓库根 LICENSE）。上游第三方组件（llama.cpp 等）按各自 MIT 许可授权。
 // =====================================================================
 
 using System.Reflection;

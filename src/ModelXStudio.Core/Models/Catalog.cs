@@ -2,6 +2,7 @@
 // 作者：zhenhua
 // 功能：内置精选模型目录的数据结构：模型条目（仓库地址、来源站点、标签、推荐量化档）
 //       与量化文件（文件名、近似字节数、说明），对应 Resources/catalog.json。
+// 许可：ModelX Studio 非商业使用许可 1.0（见仓库根 LICENSE）。上游第三方组件（llama.cpp 等）按各自 MIT 许可授权。
 // =====================================================================
 
 namespace ModelXStudio.Core.Models;

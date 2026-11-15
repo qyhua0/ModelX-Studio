@@ -2,6 +2,7 @@
 // 作者：zhenhua
 // 功能：settings.json 的读写：读取失败自动回退默认值不阻塞启动，写入采用 .tmp + 原子改名，
 //       向全应用提供 AppSettings.Current。
+// 许可：ModelX Studio 非商业使用许可 1.0（见仓库根 LICENSE）。上游第三方组件（llama.cpp 等）按各自 MIT 许可授权。
 // =====================================================================
 
 using System.Text.Json;

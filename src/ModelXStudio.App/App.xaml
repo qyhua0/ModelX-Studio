@@ -1,6 +1,7 @@
 <!--
     作者：zhenhua
     功能：应用定义：合并 Themes/Dark.xaml 深色主题资源字典（代码侧见 App.xaml.cs）。
+    许可：ModelX Studio 非商业使用许可 1.0（见仓库根 LICENSE）。上游第三方组件（llama.cpp 等）按各自 MIT 许可授权。
 -->
 <Application x:Class="ModelXStudio.App.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"

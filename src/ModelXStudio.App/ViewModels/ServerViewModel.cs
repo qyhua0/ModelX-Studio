@@ -2,6 +2,7 @@
 // 作者：zhenhua
 // 功能：本地服务页逻辑：启停推理服务、显示 OpenAI 兼容地址与 curl 示例（一键复制）、
 //       把引擎 stderr 日志按帧合并刷到界面并只保留尾部，避免长日志拖慢 UI。
+// 许可：ModelX Studio 非商业使用许可 1.0（见仓库根 LICENSE）。上游第三方组件（llama.cpp 等）按各自 MIT 许可授权。
 // =====================================================================
 
 using System.IO;
@@ -66,7 +67,7 @@ public partial class ServerViewModel : ObservableObject
     private void OnEngineState(EngineState state)
     {
         IsRunning = state.Status == EngineStatus.Running;
-        Busy = state.Status is EngineStatus.Loading or EngineStatus.DownloadingEngine;
+        Busy = state.Status == EngineStatus.Loading;
         BaseUrl = App.Engine.BaseUrl + "/v1";
         StatusLine = state.Message;
     }

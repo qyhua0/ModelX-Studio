@@ -1,0 +1,50 @@
+# llama.cpp 随包引擎信息
+# 本文件供程序读取构建号（下面 version 里的 b12387），同时作为分发清单留档。
+version=b12387
+commit=a956a852c
+built_with=Clang 20.1.8 for Windows x86_64（llama-server --version 实测）
+placed_at=2026-11-15
+source=https://github.com/ggml-org/llama.cpp/releases
+license=MIT（全文见同目录 LICENSE-MIT-llama-cpp.txt 与仓库根 THIRD_PARTY_NOTICES.md）
+
+# 说明：新版官方包是「小启动器 + llama-server-impl.dll + 后端 dll」结构，
+# 四个变体的 llama-server.exe / llama-server-impl.dll 完全相同，差别只在后端 dll
+# （CPU 只有 ggml-cpu-*.dll，CUDA 多一个 ggml-cuda.dll，Vulkan 多一个 ggml-vulkan.dll）。
+
+[cpu]
+dir=cpu
+files=52
+bytes=64674077
+exe_sha256_head=1C7872A83A1DC2DB
+impl_sha256_head=47F6CB7642C14D5F
+note=无额外运行库要求，任何 x64 Windows 都能跑
+
+[cuda]
+dir=cuda\cuda-12.4-x64
+files=53
+bytes=747478301
+ggml_cuda_dll_bytes=682804224
+exe_sha256_head=1C7872A83A1DC2DB
+impl_sha256_head=47F6CB7642C14D5F
+requires=NVIDIA 显卡 + 支持 CUDA 12.4 的驱动
+note=ggml-cuda.dll 内静态链接 cuBLAS，所以体积大；无 N 卡的机器不会用到它
+
+[cuda]
+dir=cuda\cuda-13.5-x64
+files=53
+bytes=257267485
+ggml_cuda_dll_bytes=192593408
+exe_sha256_head=1C7872A83A1DC2DB
+impl_sha256_head=47F6CB7642C14D5F
+requires=NVIDIA 显卡 + 支持 CUDA 13.5 的较新驱动
+note=程序在两份 CUDA 版之间固定选主版本号较小的（12.4），兼容性更宽
+
+[vulkan]
+dir=vulkan
+files=53
+bytes=106838301
+ggml_vulkan_dll_bytes=42164224
+exe_sha256_head=1C7872A83A1DC2DB
+impl_sha256_head=47F6CB7642C14D5F
+requires=支持 Vulkan 1.x 的显卡驱动（N / A / Intel 核显皆可）
+note=本机实测：Vulkan0 = Intel(R) Iris(R) Xe Graphics (8061 MiB, 7402 MiB free)

@@ -57,6 +57,11 @@
                                FontSize="10" Foreground="{StaticResource BrushTextDim}" />
                     <TextBlock Text="{x:Static app:AppInfo.AuthorLine}" Margin="0,3,0,0"
                                FontSize="10" Foreground="{StaticResource BrushTextFaint}" />
+                    <!-- 致谢与许可：完整说明在「设置」页底部与仓库 LICENSE / THIRD_PARTY_NOTICES.md -->
+                    <TextBlock Text="{x:Static app:AppInfo.LicenseLine}" Margin="0,3,0,0"
+                               FontSize="10" TextWrapping="Wrap"
+                               Foreground="{StaticResource BrushTextFaint}"
+                               ToolTip="本软件开源但禁止商用，完整条款见仓库根目录 LICENSE；推理引擎为开源项目 llama.cpp（MIT）" />
                 </StackPanel>
 
                 <StackPanel>

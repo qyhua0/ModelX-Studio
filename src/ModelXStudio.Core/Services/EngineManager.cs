@@ -1,14 +1,13 @@
 // =====================================================================
 // 作者：zhenhua
-// 功能：推理引擎生命周期管理：按需下载 llama.cpp 的 CPU / CUDA 版 llama-server 并解压到引擎目录，
-//       启动子进程加载 GGUF 模型（端口固定只监听 127.0.0.1），轮询 /health 判断就绪，
-//       处理端口占用与上次残留进程，负责停止、状态事件与引擎日志转发。
+// 功能：推理引擎生命周期管理。引擎（llama.cpp 的 llama-server）随程序一起分发，本类只负责在
+//       runtime\llama（以及旧版 %LOCALAPPDATA% 目录）里发现 CPU / CUDA 变体、按偏好与显卡选版本、
+//       以子进程方式启动并只监听 127.0.0.1、轮询 /health 判断就绪、处理端口占用与残留进程、
+//       停止与状态事件、引擎日志转发；引擎文件缺失时给出可操作的中文指引（不再联网下载）。
+// 许可：ModelX Studio 非商业许可 1.0（见仓库根 LICENSE）。上游 llama.cpp 为 MIT 许可，不受本协议约束。
 // =====================================================================
 
 using System.Diagnostics;
-using System.IO.Compression;
-using System.Net.Http.Json;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using ModelXStudio.Core.Models;
 
@@ -16,10 +15,8 @@ namespace ModelXStudio.Core.Services;
 
 public enum EngineStatus
 {
-    /// <summary>推理引擎（llama-server）尚未安装。</summary>
+    /// <summary>没有找到 llama.cpp 引擎文件。</summary>
     NotInstalled,
-    /// <summary>正在下载引擎。</summary>
-    DownloadingEngine,
     /// <summary>引擎就绪，未启动。</summary>
     Ready,
     /// <summary>正在加载模型。</summary>
@@ -33,39 +30,29 @@ public enum EngineStatus
 }
 
 /// <summary>引擎变体：CPU 版或 CUDA（N卡）加速版。</summary>
-public enum EngineVariant { Cpu, Cuda }
+/// <summary>
+/// 引擎变体。llama.cpp 官方 Windows 包分三种后端：CPU、CUDA（N 卡）、Vulkan（A 卡 / Intel 核显 / N 卡皆可）。
+/// </summary>
+public enum EngineVariant { Cpu, Cuda, Vulkan }
 
 public sealed record EngineState(EngineStatus Status, string? ModelPath, string Message);
 
 /// <summary>
-/// 推理引擎管理器：自动下载 llama.cpp 的 llama-server 二进制（Windows x64，CPU 或 CUDA 变体），
-/// 以子进程方式运行，并通过其 HTTP 接口提供服务（与 LM Studio 同思路）。
-/// 检测到 NVIDIA 显卡时推荐使用 CUDA 版，生成速度可提升数倍。
+/// 推理引擎管理器。引擎二进制（llama.cpp 官方 Windows 版里的 llama-server.exe 及其 dll）
+/// <b>随程序一起打包分发</b>，程序运行时不再联网下载任何东西；本类负责发现它、选中合适的变体、
+/// 以子进程方式跑起来并通过它的 HTTP 接口提供服务（与 LM Studio 同思路）。
+/// 检测到 NVIDIA 显卡时优先使用 CUDA 版，生成速度可提升数倍。
 /// </summary>
 public sealed class EngineManager : IAsyncDisposable
 {
-    private const string ReleasesApi = "https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=10";
-    private static readonly Regex CpuAsset = new(@"llama-b\d+-bin-win-cpu-x64\.zip$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex CudaAsset = new(@"llama-b\d+-bin-win-cuda[-_.a-z0-9]*-x64\.zip$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    /// <summary>llama.cpp 官方发布页（引擎文件缺失时提示用户去这里取，或由打包脚本一次性拉取）。</summary>
+    public const string ReleasesPage = "https://github.com/ggml-org/llama.cpp/releases";
+
+    private const string ExeName = "llama-server.exe";
 
     private readonly SettingsService _settings;
-    private readonly DownloadService _downloads;
     private readonly SystemInfoService? _systemInfo;
-    /// <summary>
-    /// GitHub REST API 要求必须带 User-Agent，缺头会被直接 403（HttpClient 默认不发 UA），
-    /// 所以这里显式声明客户端名与版本，并固定 API 版本、Accept 类型。
-    /// </summary>
-    private readonly HttpClient _http = CreateGitHubClient();
 
-    private static HttpClient CreateGitHubClient()
-    {
-        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(25) };
-        client.DefaultRequestHeaders.UserAgent.Clear();
-        client.DefaultRequestHeaders.UserAgent.Add(new System.Net.Http.Headers.ProductInfoHeaderValue("ModelXStudio", "0.1.0"));
-        client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-        client.DefaultRequestHeaders.TryAddWithoutValidation("X-GitHub-Api-Version", "2022-11-28");
-        return client;
-    }
     private Process? _process;
     private readonly object _sync = new();
 
@@ -78,34 +65,172 @@ public sealed class EngineManager : IAsyncDisposable
     public event Action<EngineState>? StateChanged;
     public event Action<string>? LogReceived;
 
-    public EngineState State { get; private set; } = new(EngineStatus.NotInstalled, null, "引擎未安装");
+    public EngineState State { get; private set; } = new(EngineStatus.NotInstalled, null, "正在查找推理引擎…");
 
     /// <summary>当前运行实例使用的引擎变体。</summary>
     public EngineVariant? RunningVariant { get; private set; }
 
-    public EngineManager(SettingsService settings, DownloadService downloads, SystemInfoService? systemInfo = null)
+    public EngineManager(SettingsService settings, SystemInfoService? systemInfo = null)
     {
         _settings = settings;
-        _downloads = downloads;
         _systemInfo = systemInfo;
         RefreshInstalledState();
     }
 
-    public static string ExeDirFor(EngineVariant v) =>
-        Path.Combine(AppSettings.EngineDirectory, v == EngineVariant.Cuda ? "cuda" : "cpu");
+    private static string DirName(EngineVariant v) => v switch
+    {
+        EngineVariant.Cuda => "cuda",
+        EngineVariant.Vulkan => "vulkan",
+        _ => "cpu",
+    };
 
-    public static string ExePathFor(EngineVariant v) => Path.Combine(ExeDirFor(v), "llama-server.exe");
+    /// <summary>
+    /// 在候选根目录里扫描 llama-server.exe。允许三种摆放方式：
+    /// <c>runtime\llama\cpu\llama-server.exe</c>（规范）、<c>runtime\llama\llama-server.exe</c>（摊平）、
+    /// 以及解压时自带一层 <c>llama-b5102-bin-win-cuda-12.4-x64\</c> 子目录。
+    /// 路径里含 “cuda” 的算 CUDA 版、含 “vulkan” 的算 Vulkan 版，其余算 CPU 版。
+    /// 官方 CUDA 包按 CUDA 版本分发（如 cuda-12.4-x64、cuda-13.5-x64），所以同层可能出现两份 CUDA 版，
+    /// 具体用哪一份由 <see cref="FindExecutable"/> 的确定性排序决定。
+    /// </summary>
+    private IEnumerable<(string Exe, EngineVariant Variant)> ScanExecutables()
+    {
+        foreach (var root in _settings.Current.EngineRootCandidates())
+        {
+            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) continue;
 
-    /// <summary>旧版单目录布局，兼容为 CPU 版。</summary>
-    private static string LegacyExePath => Path.Combine(AppSettings.EngineDirectory, "llama-server.exe");
+            string[] found;
+            try
+            {
+                found = Directory.GetFiles(root, ExeName, SearchOption.AllDirectories);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Engine] 扫描 {root} 失败：{ex.Message}");
+                continue;
+            }
 
-    public bool IsInstalled(EngineVariant v) =>
-        File.Exists(ExePathFor(v)) || (v == EngineVariant.Cpu && File.Exists(LegacyExePath));
+            foreach (var exe in found)
+            {
+                var rel = Path.GetRelativePath(root, exe);
+                yield return (exe, Classify(rel));
+            }
+        }
+    }
 
-    private static string ResolveExePath(EngineVariant v) =>
-        File.Exists(ExePathFor(v)) ? ExePathFor(v) : LegacyExePath;
+    private static EngineVariant Classify(string relativePath) =>
+        relativePath.Contains("vulkan", StringComparison.OrdinalIgnoreCase) ? EngineVariant.Vulkan
+        : relativePath.Contains("cuda", StringComparison.OrdinalIgnoreCase) ? EngineVariant.Cuda
+        : EngineVariant.Cpu;
 
-    public static string VariantName(EngineVariant v) => v == EngineVariant.Cuda ? "GPU 加速版" : "CPU 版";
+    /// <summary>
+    /// 同一个变体有多份时的优先级：规范目录（cuda\，不带版本号）最优先，然后按 CUDA 主版本号从小到大。
+    /// 比如同时放了 cuda-12.4 与 cuda-13.5，选 12.4 —— 它对显卡驱动版本的要求更宽，能跑的人群更多。
+    /// </summary>
+    private static int FlavorRank(string exe)
+    {
+        var dir = Path.GetDirectoryName(exe) ?? "";
+        var m = Regex.Match(dir, @"(?:cuda|cublas)[-_ ]?(\d+)", RegexOptions.IgnoreCase);
+        return m.Success && int.TryParse(m.Groups[1].Value, out var major) ? major : 0;
+    }
+
+    /// <summary>指定变体的可执行文件完整路径；没找到返回 null。排序完全确定：先按 Flavor、再按路径深度。</summary>
+    public string? FindExecutable(EngineVariant want) =>
+        ScanExecutables()
+            .Where(e => e.Variant == want)
+            .OrderBy(e => FlavorRank(e.Exe))
+            .ThenBy(e => e.Exe.Length)
+            .ThenBy(e => e.Exe, StringComparer.OrdinalIgnoreCase)
+            .Select(e => e.Exe)
+            .FirstOrDefault();
+
+    public bool IsInstalled(EngineVariant v) => FindExecutable(v) != null;
+
+    /// <summary>三个变体里有没有任意一个可用。</summary>
+    public bool AnyInstalled => FirstInstalled() != null;
+
+    /// <summary>实际找到的第一个引擎可执行文件（按变体规范目录优先），一个都没有返回 null。</summary>
+    public string? FirstInstalled() =>
+        FindExecutable(EngineVariant.Cpu) ?? FindExecutable(EngineVariant.Cuda) ?? FindExecutable(EngineVariant.Vulkan);
+
+    /// <summary>同上，但返回变体；一个都没装返回 null。</summary>
+    private EngineVariant? FirstInstalledVariant()
+    {
+        if (IsInstalled(EngineVariant.Cpu)) return EngineVariant.Cpu;
+        if (IsInstalled(EngineVariant.Cuda)) return EngineVariant.Cuda;
+        if (IsInstalled(EngineVariant.Vulkan)) return EngineVariant.Vulkan;
+        return null;
+    }
+
+    /// <summary>该变体现在所在的目录；没装则给出应当放入的目录（供“打开文件夹”按钮）。</summary>
+    public string FolderFor(EngineVariant v) =>
+        FindExecutable(v) is { } exe
+            ? Path.GetDirectoryName(exe)!
+            : Path.Combine(RootForWrites(), DirName(v));
+
+    /// <summary>用户指定的目录优先，其次随包目录——新建子目录时往这里写。</summary>
+    private string RootForWrites() =>
+        !string.IsNullOrWhiteSpace(_settings.Current.EngineRoot)
+            ? _settings.Current.EngineRoot
+            : AppSettings.BundledEngineRoot();
+
+    /// <summary>当前应当使用的引擎目录（用于设置页展示）。</summary>
+    public string ActiveEngineFolder =>
+        (FindExecutable(RecommendedVariant) ?? FirstInstalled()) is { } found
+            ? Path.GetDirectoryName(found)!
+            : Path.Combine(AppSettings.BundledEngineRoot(), DirName(RecommendedVariant));
+
+    public static string VariantName(EngineVariant v) => v switch
+    {
+        EngineVariant.Cuda => "CUDA 加速版",
+        EngineVariant.Vulkan => "Vulkan 加速版",
+        _ => "CPU 版",
+    };
+
+    /// <summary>缺失时提示用户应当找的文件名样式（官方包名带构建号，这里用占位）。</summary>
+    public static string AssetHint(EngineVariant v) => v switch
+    {
+        EngineVariant.Cuda => "llama-b<构建号>-bin-win-cuda-12.x-x64.zip",
+        EngineVariant.Vulkan => "llama-b<构建号>-bin-win-vulkan-x64.zip",
+        _ => "llama-b<构建号>-bin-win-cpu-x64.zip",
+    };
+
+    /// <summary>
+    /// 读取 runtime\llama\VERSION.txt 里的构建号（形如 b5102）。该文件由 scripts/get-llama.ps1 写入；
+    /// 手动解压的用户没有这个文件也没关系，返回 null，界面只显示变体名。
+    /// </summary>
+    public string? InstalledEngineBuild()
+    {
+        foreach (var root in _settings.Current.EngineRootCandidates())
+        {
+            var file = Path.Combine(root, "VERSION.txt");
+            if (!File.Exists(file)) continue;
+            try
+            {
+                var match = Regex.Match(File.ReadAllText(file), @"b\d{3,6}");
+                if (match.Success) return match.Value;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Engine] 读取 {file} 失败：{ex.Message}");
+            }
+        }
+        return null;
+    }
+
+    /// <summary>给界面用的一行引擎说明，例如「CPU 版 · b5102」。</summary>
+    public string EngineSummary
+    {
+        get
+        {
+            if (!AnyInstalled) return "未找到引擎文件";
+            var build = InstalledEngineBuild();
+            var names = new List<string>();
+            if (IsInstalled(EngineVariant.Cpu)) names.Add("CPU 版");
+            if (IsInstalled(EngineVariant.Cuda)) names.Add("CUDA 版");
+            if (IsInstalled(EngineVariant.Vulkan)) names.Add("Vulkan 版");
+            return string.Join(" + ", names) + (build == null ? "" : $" · {build}");
+        }
+    }
 
     /// <summary>根据用户偏好与显卡检测给出应推荐的引擎变体。</summary>
     public EngineVariant RecommendedVariant
@@ -115,22 +240,48 @@ public sealed class EngineManager : IAsyncDisposable
             var pref = _settings.Current.EnginePreference;
             if (pref == "Cpu") return EngineVariant.Cpu;
             if (pref == "Cuda") return EngineVariant.Cuda;
-
-            var nvidia = _systemInfo?.Hardware.Gpus
-                .FirstOrDefault(g => g.Vendor == GpuVendor.Nvidia && g.IsDiscrete)
-                ?? _systemInfo?.Hardware.Gpus.FirstOrDefault(g => g.Vendor == GpuVendor.Nvidia);
-            return nvidia != null && (nvidia.VramGb == null || nvidia.VramGb >= 2)
-                ? EngineVariant.Cuda
-                : EngineVariant.Cpu;
+            if (pref == "Vulkan") return EngineVariant.Vulkan;
+            return HasNvidia() ? EngineVariant.Cuda : EngineVariant.Cpu;
         }
     }
 
-    /// <summary>已装 CPU 版、检测到 N 卡且缺 CUDA 版 → 提供一键升级。</summary>
+    /// <summary>有没有能用 CUDA 的 N 卡（显存未知也先认为可用，真跑不起来会在日志里看到回退）。</summary>
+    private bool HasNvidia()
+    {
+        var nvidia = _systemInfo?.Hardware.Gpus
+            .FirstOrDefault(g => g.Vendor == GpuVendor.Nvidia && g.IsDiscrete)
+            ?? _systemInfo?.Hardware.Gpus.FirstOrDefault(g => g.Vendor == GpuVendor.Nvidia);
+        return nvidia != null && (nvidia.VramGb == null || nvidia.VramGb >= 2);
+    }
+
+    /// <summary>有没有任意显卡（含核显）。Vulkan 后端能吃到 Intel Iris / AMD 的共享显存。</summary>
+    private bool HasAnyGpu() => _systemInfo?.Hardware.Gpus.Count > 0;
+
+    /// <summary>只有 CPU 版、但检测到 N 卡 → 提示用户可以补上 CUDA 版（随包只带了 CPU 版时常见）。</summary>
     public bool GpuUpgradeAvailable =>
         _settings.Current.EnginePreference != "Cpu"
         && IsInstalled(EngineVariant.Cpu)
         && !IsInstalled(EngineVariant.Cuda)
+        && !IsInstalled(EngineVariant.Vulkan)
         && RecommendedVariant == EngineVariant.Cuda;
+
+    /// <summary>引擎文件缺失时给用户的完整指引（多行，界面按换行显示）。</summary>
+    public string MissingEngineMessage
+    {
+        get
+        {
+            var v = RecommendedVariant;
+            var text = "没有找到推理引擎 llama-server.exe。\n" +
+                       $"请把 llama.cpp 的 Windows 版解压到这个目录：\n{FolderFor(v)}\n" +
+                       $"需要的是 {AssetHint(v)}（解压后把里面的 llama-server.exe 和全部 .dll 放在同一层）。\n";
+            if (v == EngineVariant.Cpu)
+            {
+                text += "如果没有 NVIDIA 显卡但有其它显卡（包括 Intel 核显），用 Vulkan 包提速明显：\n" +
+                        $"{AssetHint(EngineVariant.Vulkan)} 解压到 {FolderFor(EngineVariant.Vulkan)}\n";
+            }
+            return text + $"下载页：{ReleasesPage}\n放好后重启本程序即可。";
+        }
+    }
 
     private static string UrlFor(int port) => $"http://127.0.0.1:{port}";
 
@@ -143,114 +294,42 @@ public sealed class EngineManager : IAsyncDisposable
         StateChanged?.Invoke(State);
     }
 
+    /// <summary>重新扫描引擎目录并刷新状态（用户在提示里补完文件后可调用）。</summary>
     public void RefreshInstalledState()
     {
-        if (!IsInstalled(EngineVariant.Cpu) && !IsInstalled(EngineVariant.Cuda))
-            SetState(EngineStatus.NotInstalled, null, "首次使用需要下载推理引擎（自动完成）");
-        else if (State.Status is EngineStatus.NotInstalled or EngineStatus.Failed)
-            SetState(EngineStatus.Ready, null, "引擎就绪，选择一个模型开始");
+        if (!AnyInstalled)
+        {
+            SetState(EngineStatus.NotInstalled, null, MissingEngineMessage);
+            return;
+        }
+
+        var summary = EngineSummary;
+        if (State.Status is EngineStatus.NotInstalled or EngineStatus.Failed)
+            SetState(EngineStatus.Ready, null, $"引擎就绪（{summary}），选择一个模型开始");
+        else if (State.Status == EngineStatus.Ready)
+            SetState(EngineStatus.Ready, null, $"引擎就绪（{summary}），选择一个模型开始");
     }
 
-    /// <summary>下载并解压指定变体（幂等）。variant=null 表示使用推荐变体。</summary>
-    public async Task EnsureEngineAsync(EngineVariant? variant, IProgress<DownloadProgress>? progress, CancellationToken ct)
+    /// <summary>
+    /// 打开（必要时创建）某变体应当存放引擎的目录，方便用户把 llama.cpp 的文件放进去。
+    /// 返回实际打开的目录路径。
+    /// </summary>
+    public string OpenEngineFolder(EngineVariant v)
     {
-        var target = variant ?? RecommendedVariant;
-        if (IsInstalled(target)) return;
-
-        SetState(EngineStatus.DownloadingEngine, null, $"正在获取 {VariantName(target)} 引擎版本信息…");
+        var folder = FolderFor(v);
         try
         {
-            var zipUrl = await ResolveAssetUrlAsync(target, ct);
-            LogReceived?.Invoke($"引擎下载地址：{zipUrl}");
-
-            SetState(EngineStatus.DownloadingEngine, null, $"正在下载 {VariantName(target)} 引擎…");
-            var zipPath = Path.Combine(Path.GetTempPath(), $"modelx-engine-{target}.zip");
-
-            // 把下载百分比并入状态消息，自动安装（无 UI 传进度）时用户也能看到
-            var inner = new Progress<DownloadProgress>(p =>
-            {
-                var detail = p.Percent is double pc
-                    ? $"{pc:0}%"
-                    : $"{p.ReceivedBytes / 1024.0 / 1024:0} MB";
-                SetState(EngineStatus.DownloadingEngine, null,
-                    $"正在下载 {VariantName(target)} 引擎… {detail} · {p.SpeedText}");
-                progress?.Report(p);
-            });
-
-            await _downloads.DownloadAsync(zipUrl, zipPath, inner, ct);
-
-            SetState(EngineStatus.DownloadingEngine, null, "正在解压引擎…");
-            var dir = ExeDirFor(target);
-            Directory.CreateDirectory(dir);
-            using (var archive = ZipFile.OpenRead(zipPath))
-            {
-                foreach (var entry in archive.Entries)
-                {
-                    var name = Path.GetFileName(entry.FullName);
-                    if (string.IsNullOrEmpty(name)) continue;
-                    if (!(name.Equals("llama-server.exe", StringComparison.OrdinalIgnoreCase)
-                          || name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))) continue;
-
-                    entry.ExtractToFile(Path.Combine(dir, name), overwrite: true);
-                }
-            }
-            TryDelete(zipPath);
-
-            if (!IsInstalled(target))
-            {
-                SetState(EngineStatus.Failed, null, "引擎解压后未找到 llama-server.exe");
-                return;
-            }
-
-            SetState(EngineStatus.Ready, null, $"引擎就绪（{VariantName(target)}），选择一个模型开始");
-        }
-        catch (OperationCanceledException)
-        {
-            RefreshInstalledState();
-            throw;
+            Directory.CreateDirectory(folder);
+            Process.Start("explorer.exe", $"\"{folder}\"");
         }
         catch (Exception ex)
         {
-            SetState(EngineStatus.Failed, null, $"引擎下载失败：{ex.Message}。可重试，或到设置中更换网络镜像。");
+            System.Diagnostics.Debug.WriteLine($"[Engine] 打开目录失败：{ex.Message}");
         }
+        return folder;
     }
 
-    /// <summary>在最近的官方 release 中寻找匹配变体的资产包。</summary>
-    private async Task<string> ResolveAssetUrlAsync(EngineVariant variant, CancellationToken ct)
-    {
-        using var resp = await _http.GetAsync(ReleasesApi, ct);
-        if (!resp.IsSuccessStatusCode)
-        {
-            var code = (int)resp.StatusCode;
-            throw new InvalidOperationException(code is 403 or 429
-                ? $"获取引擎版本信息失败：GitHub 接口访问受限（{code}，未登录时每小时最多 60 次）。请稍后重试，或在「设置」页打开引擎目录后手动放入 llama-server。"
-                : $"获取引擎版本信息失败：GitHub 接口返回 {code}。请检查网络后重试。");
-        }
-        using var doc = await resp.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken: ct);
-        if (doc == null) throw new InvalidOperationException("无法解析 GitHub release 信息");
-
-        var pattern = variant == EngineVariant.Cuda ? CudaAsset : CpuAsset;
-        foreach (var release in doc.RootElement.EnumerateArray())
-        {
-            if (!release.TryGetProperty("assets", out var assets)) continue;
-
-            var matches = assets.EnumerateArray()
-                .Select(a => a.TryGetProperty("browser_download_url", out var u) ? u.GetString() ?? "" : "")
-                .Where(url => pattern.IsMatch(url))
-                .ToList();
-
-            if (matches.Count == 0) continue;
-
-            // 同时有 CUDA 12/13 包时选 12：对显卡驱动版本要求更低，老卡兼容更好
-            return matches.FirstOrDefault(m => m.Contains("cuda-12", StringComparison.OrdinalIgnoreCase)
-                                            || m.Contains("cuda-cu12", StringComparison.OrdinalIgnoreCase))
-                   ?? matches[0];
-        }
-
-        throw new InvalidOperationException($"未在官方发布中找到 {VariantName(variant)} 的 Windows x64 引擎包");
-    }
-
-    /// <summary>加载指定模型（若已有其它模型在运行会先停掉）。引擎缺失时自动安装推荐变体。</summary>
+    /// <summary>加载指定模型（若已有其它模型在运行会先停掉）。引擎缺失时直接报错并给出放置指引。</summary>
     public async Task StartModelAsync(string modelPath, CancellationToken ct)
     {
         await _startLock.WaitAsync(ct);
@@ -267,17 +346,19 @@ public sealed class EngineManager : IAsyncDisposable
     /// <summary>真正的启动流程，只允许 StartModelAsync 在持有 _startLock 时调用。</summary>
     private async Task StartModelCoreAsync(string modelPath, CancellationToken ct)
     {
-        if (!IsInstalled(EngineVariant.Cpu) && !IsInstalled(EngineVariant.Cuda))
+        if (!File.Exists(modelPath))
         {
-            await EnsureEngineAsync(null, null, ct);
-            if (!IsInstalled(EngineVariant.Cpu) && !IsInstalled(EngineVariant.Cuda)) return; // 失败状态已上报
+            SetState(EngineStatus.Failed, null, "模型文件不存在，可能已被移动或删除。");
+            return;
         }
 
         var variant = PickStartVariant();
-        if (!IsInstalled(variant))
+        var exe = FindExecutable(variant);
+        if (exe == null)
         {
-            await EnsureEngineAsync(variant, null, ct);
-            if (!IsInstalled(variant)) return;
+            // 引擎是随包文件，程序不会联网补下载：只能告诉用户放哪里
+            SetState(EngineStatus.Failed, null, MissingEngineMessage);
+            return;
         }
 
         lock (_sync)
@@ -310,20 +391,26 @@ public sealed class EngineManager : IAsyncDisposable
             $"--temp {temp:0.##}",
             $"--top-p {topP:0.##}",
             $"--top-k {topK}",
-            $"--n-gpu-layers {(variant == EngineVariant.Cuda ? 999 : 0)}",
+            $"--n-gpu-layers {(variant == EngineVariant.Cpu ? 0 : 999)}",
             "--jinja",
             "--no-webui");
 
-        SetState(EngineStatus.Loading, modelPath, variant == EngineVariant.Cuda
-            ? "正在以 GPU 加速加载模型…"
-            : "正在加载模型，首次加载大模型可能需要十几秒…");
-        LogReceived?.Invoke($"启动（{VariantName(variant)}）：llama-server {args}");
+        SetState(EngineStatus.Loading, modelPath, variant switch
+        {
+            EngineVariant.Cuda => "正在以 CUDA 加速加载模型…",
+            EngineVariant.Vulkan => "正在以 Vulkan 加速加载模型…",
+            _ => "正在加载模型，首次加载大模型可能需要十几秒…",
+        });
+        LogReceived?.Invoke($"引擎目录：{Path.GetDirectoryName(exe)}");
+        LogReceived?.Invoke($"启动（{VariantName(variant)}" +
+                            (InstalledEngineBuild() is { } b ? $" {b}" : "") +
+                            $"）：llama-server {args}");
 
         var psi = new ProcessStartInfo
         {
-            FileName = ResolveExePath(variant),
+            FileName = exe,
             Arguments = args,
-            WorkingDirectory = Path.GetDirectoryName(ResolveExePath(variant))!,
+            WorkingDirectory = Path.GetDirectoryName(exe)!,
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -418,19 +505,25 @@ public sealed class EngineManager : IAsyncDisposable
     }
 
     /// <summary>
-    /// 清理本应用遗留的 llama-server 进程。只处理可执行文件位于本应用引擎目录内的进程，
+    /// 清理本应用遗留的 llama-server 进程。只处理可执行文件位于引擎候选目录内的进程，
     /// 不碰用户自己手动启动的 llama.cpp。
     /// </summary>
-    private static int KillOrphanInstances()
+    private int KillOrphanInstances()
     {
         var killed = 0;
+        // 引擎可能有多个根目录（用户指定 + 随包 + 旧版），逐个比对前缀，避免误杀或漏杀
+        var roots = _settings.Current.EngineRootCandidates()
+            .Select(r => r.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+            .Where(r => r.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         foreach (var p in Process.GetProcessesByName("llama-server"))
         {
             try
             {
                 var path = p.MainModule?.FileName;
-                if (path == null ||
-                    !path.StartsWith(AppSettings.EngineDirectory, StringComparison.OrdinalIgnoreCase))
+                if (path == null || !roots.Any(r => path.StartsWith(r, StringComparison.OrdinalIgnoreCase)))
                     continue;
 
                 p.Kill(entireProcessTree: true);
@@ -449,13 +542,24 @@ public sealed class EngineManager : IAsyncDisposable
         return killed;
     }
 
-    /// <summary>优先用推荐变体；推荐未安装但有已装变体时先用已装的（避免意外大下载）。</summary>
+    /// <summary>
+    /// 本次加载实际用哪个变体。用户明确指定的优先；指定的那个没放就别硬失败，退回能用的。
+    /// 「自动」下：有 N 卡用 CUDA；没有 N 卡但随包带了 Vulkan 且本机有显卡（含核显）就用 Vulkan
+    /// —— Iris Xe 这类核显有十几 GB 共享显存，比纯 CPU 快得多；都没有就用 CPU。
+    /// </summary>
     private EngineVariant PickStartVariant()
     {
-        var rec = RecommendedVariant;
-        if (IsInstalled(rec)) return rec;
-        var other = rec == EngineVariant.Cuda ? EngineVariant.Cpu : EngineVariant.Cuda;
-        return IsInstalled(other) ? other : rec;
+        var pref = _settings.Current.EnginePreference;
+        if (pref is "Cpu" or "Cuda" or "Vulkan")
+        {
+            var wanted = pref == "Cuda" ? EngineVariant.Cuda : pref == "Vulkan" ? EngineVariant.Vulkan : EngineVariant.Cpu;
+            if (IsInstalled(wanted)) return wanted;
+            return FirstInstalledVariant() ?? wanted;
+        }
+
+        if (HasNvidia() && IsInstalled(EngineVariant.Cuda)) return EngineVariant.Cuda;
+        if (HasAnyGpu() && IsInstalled(EngineVariant.Vulkan)) return EngineVariant.Vulkan;
+        return FirstInstalledVariant() ?? RecommendedVariant;
     }
 
     public async Task SwitchModelAsync(string modelPath, CancellationToken ct)
@@ -479,7 +583,7 @@ public sealed class EngineManager : IAsyncDisposable
             _runningPort = null;
         }
 
-        // 本来就没在跑时不要伪报一次「服务已停止」，否则会覆盖下载/失败等真实状态
+        // 本来就没在跑时不要伪报一次「服务已停止」，否则会覆盖引擎缺失等真实状态
         if (wasRunning)
             SetState(EngineStatus.Ready, null, "服务已停止");
     }
@@ -512,15 +616,9 @@ public sealed class EngineManager : IAsyncDisposable
         _ => (0.6, 0.92, 30)
     };
 
-    private static void TryDelete(string path)
-    {
-        try { if (File.Exists(path)) File.Delete(path); } catch { /* 忽略临时文件清理失败 */ }
-    }
-
     public ValueTask DisposeAsync()
     {
         lock (_sync) { KillProcessNoLock(); }
-        _http.Dispose();
         _startLock.Dispose();
         return ValueTask.CompletedTask;
     }

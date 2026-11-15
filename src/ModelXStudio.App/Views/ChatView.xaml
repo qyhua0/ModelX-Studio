@@ -2,6 +2,7 @@
     作者：zhenhua
     功能：聊天页界面：顶部模型与生成风格选择、引擎状态、消息气泡列表（区分我/ModelX）、
           底部输入框（Enter 发送，Shift+Enter 换行）与「停止生成」。
+    许可：ModelX Studio 非商业使用许可 1.0（见仓库根 LICENSE）。上游第三方组件（llama.cpp 等）按各自 MIT 许可授权。
 -->
 <UserControl x:Class="ModelXStudio.App.Views.ChatView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"

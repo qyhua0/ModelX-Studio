@@ -1,7 +1,9 @@
 // =====================================================================
 // 作者：zhenhua
-// 功能：模型库页逻辑：推理引擎安装与 GPU(CUDA) 升级提示、精选模型卡片（选量化档、下载/取消/续传、
+// 功能：模型库页逻辑：推理引擎（随包分发的 llama.cpp）缺失与只有 CPU 版时的指引（打开目录 /
+//       复制官方下载地址 / 重新扫描，全程不在程序里下载）、精选模型卡片（选量化档、下载/取消/续传、
 //       按本机硬件给适配标签）、本地模型加载/删除/定位目录、按直链导入模型。
+// 许可：ModelX Studio 非商业使用许可 1.0（见仓库根 LICENSE）。上游第三方组件（llama.cpp 等）按各自 MIT 许可授权。
 // =====================================================================
 
 using System.IO;
@@ -220,10 +222,7 @@ public partial class ModelsViewModel : ObservableObject
     private string _engineStatusText = "";
 
     [ObservableProperty]
-    private bool _showEngineInstall;
-
-    [ObservableProperty]
-    private double _enginePercent;
+    private bool _showEngineMissing;
 
     [ObservableProperty]
     private bool _engineBusy;
@@ -267,33 +266,6 @@ public partial class ModelsViewModel : ObservableObject
         ShowGpuUpgrade = App.Engine.GpuUpgradeAvailable;
     }
 
-    /// <summary>检测到 N 卡且只装了 CPU 引擎时，一键升级到 CUDA 版。</summary>
-    [RelayCommand]
-    private async Task UpgradeToGpuAsync()
-    {
-        ShowGpuUpgrade = false;
-        App.SettingsService.Current.EnginePreference = "Cuda";
-        App.SettingsService.Save();
-
-        try
-        {
-            await App.Engine.EnsureEngineAsync(EngineVariant.Cuda, null, CancellationToken.None);
-
-            // 若当前正用 CPU 版跑着模型，切换到 GPU 版重新加载
-            var running = App.Engine.State.ModelPath;
-            if (running != null && File.Exists(running))
-                await App.Engine.StartModelAsync(running, CancellationToken.None);
-        }
-        catch (Exception ex)
-        {
-            // 升级失败要把偏好改回 CPU，否则下次启动还会反复撞同一个失败
-            App.SettingsService.Current.EnginePreference = "Cpu";
-            App.SettingsService.Save();
-
-            ThemedDialog.Warn($"GPU 引擎升级失败：{ex.Message}\n将继续使用 CPU 版。", "GPU 加速");
-        }
-    }
-
     private void ApplyHardware(SystemHardware hw)
     {
         var (line1, line2, advice) = ModelRecommender.Summarize(hw);
@@ -308,10 +280,47 @@ public partial class ModelsViewModel : ObservableObject
     private void OnEngineState(EngineState state)
     {
         EngineStatusText = state.Message;
-        ShowEngineInstall = state.Status is EngineStatus.NotInstalled or EngineStatus.Failed;
-        EngineBusy = state.Status is EngineStatus.DownloadingEngine or EngineStatus.Loading;
-        if (state.Status != EngineStatus.DownloadingEngine) EnginePercent = 0;
+        // 引擎是随包文件：只有“找不到”才需要横幅，模型加载失败应该看服务页/日志
+        ShowEngineMissing = !App.Engine.AnyInstalled;
+        EngineBusy = state.Status == EngineStatus.Loading;
         UpdateRunningBadges();
+    }
+
+    /// <summary>打开应当存放 llama.cpp 的目录（不存在时会先建好）。</summary>
+    [RelayCommand]
+    private void OpenEngineFolder() => App.Engine.OpenEngineFolder(App.Engine.RecommendedVariant);
+
+    /// <summary>把 llama.cpp 官方发布页复制到剪贴板，并说明要哪个包、放到哪一层。</summary>
+    [RelayCommand]
+    private void CopyEngineLink()
+    {
+        var v = App.Engine.RecommendedVariant;
+        var page = EngineManager.ReleasesPage;
+        try
+        {
+            Clipboard.SetText(page);
+            ThemedDialog.Info(
+                "下载地址已复制到剪贴板。\n" +
+                $"需要的是 {EngineManager.AssetHint(v)}。\n" +
+                $"解压后把 llama-server.exe 和全部 .dll 放在这一层：\n{App.Engine.FolderFor(v)}\n" +
+                "放好后点「我已放好，重新检查」即可，不用重启程序。",
+                "获取引擎文件");
+        }
+        catch (Exception ex)
+        {
+            ThemedDialog.Warn($"复制失败（{ex.Message}），请手动访问：\n{page}", "获取引擎文件");
+        }
+    }
+
+    /// <summary>按提示把引擎文件放好后重新扇描，不用重启程序。</summary>
+    [RelayCommand]
+    private void RescanEngine()
+    {
+        App.Engine.RefreshInstalledState();
+        ShowGpuUpgrade = App.Engine.GpuUpgradeAvailable;
+        EngineStatusText = App.Engine.AnyInstalled
+            ? $"找到引擎了（{App.Engine.EngineSummary}），现在可以加载模型"
+            : App.Engine.MissingEngineMessage;
     }
 
     public void Refresh()
@@ -328,31 +337,11 @@ public partial class ModelsViewModel : ObservableObject
         foreach (var vm in Locals) vm.IsRunning = vm.Model.FilePath == running;
     }
 
-    /// <summary>加载模型（供聊天页 / 服务页 / 自动恢复调用）。引擎缺失时自动安装推荐变体。</summary>
+    /// <summary>加载模型（供聊天页 / 服务页 / 自动恢复调用）。引擎文件缺失时会拿到放置指引而非报错代码。</summary>
     public async Task LoadModelAsync(string path)
     {
         await App.Engine.StartModelAsync(path, CancellationToken.None);
         App.Chat.RefreshModelOptions();
-    }
-
-    [RelayCommand]
-    private async Task InstallEngineAsync()
-    {
-        var progress = new Progress<DownloadProgress>(p =>
-        {
-            EnginePercent = p.Percent ?? 0;
-            EngineStatusText = $"正在下载推理引擎… {p.SpeedText}";
-        });
-
-        try
-        {
-            await App.Engine.EnsureEngineAsync(null, progress, CancellationToken.None);
-            ShowGpuUpgrade = App.Engine.GpuUpgradeAvailable;
-        }
-        catch (Exception ex)
-        {
-            ThemedDialog.Error($"引擎安装失败：{ex.Message}\n\n请检查网络后重试。", "安装引擎");
-        }
     }
 
     [RelayCommand]

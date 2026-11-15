@@ -1,9 +1,21 @@
+# 构建产物
 bin/
 obj/
-*.user
+publish/
+
+# 编辑器 / IDE
 .vs/
 .idea/
-publish/
-*.md
-src/ModelXStudio.App/bin
-src/ModelXStudio.Core/bin
+*.user
+
+# 随包分发的 llama.cpp 二进制（几百 MB），不入库。
+# 只保留 runtime/llama/README.md、LICENSE-MIT-llama-cpp.txt、VERSION.txt，
+# 用 scripts/get-llama.ps1 一条命令重新取回。
+runtime/llama/**/*.exe
+runtime/llama/**/*.dll
+runtime/llama/**/*.zip
+
+# 日志与临时文件
+*.log
+*.tmp
+TestResults/

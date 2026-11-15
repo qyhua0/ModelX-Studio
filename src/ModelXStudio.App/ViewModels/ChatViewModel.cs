@@ -2,6 +2,7 @@
 // 作者：zhenhua
 // 功能：聊天页逻辑：会话新建/删除、消息气泡视图模型、把历史（截断到最近若干条）+ system 提示词
 //       发给本地引擎并流式追加回复、停止生成、模型与「快速/均衡/高质量」预设的联动。
+// 许可：ModelX Studio 非商业使用许可 1.0（见仓库根 LICENSE）。上游第三方组件（llama.cpp 等）按各自 MIT 许可授权。
 // =====================================================================
 
 using System.IO;
@@ -118,7 +119,7 @@ public partial class ChatViewModel : ObservableObject
         {
             EngineStatus.Running => "● " + Path.GetFileName(state.ModelPath ?? "") + " 已就绪",
             EngineStatus.Loading => "● 模型加载中…",
-            EngineStatus.DownloadingEngine => "● " + state.Message,
+            EngineStatus.NotInstalled => "⚠ 推理引擎文件缺失，去「模型库」页看怎么补上",
             _ => state.Message
         };
 

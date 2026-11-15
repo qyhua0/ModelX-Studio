@@ -2,6 +2,7 @@
 // 作者：zhenhua
 // 功能：与 llama-server 的 OpenAI 兼容接口通信：向 /v1/chat/completions 发起流式请求，
 //       逐段解析 SSE 增量文本并忽略异常数据行；进程内共用一个 HttpClient 复用连接。
+// 许可：ModelX Studio 非商业使用许可 1.0（见仓库根 LICENSE）。上游第三方组件（llama.cpp 等）按各自 MIT 许可授权。
 // =====================================================================
 
 using System.Text;

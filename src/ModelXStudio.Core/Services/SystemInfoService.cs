@@ -3,6 +3,7 @@
 // 功能：本机硬件检测：CPU 型号与核数/线程数、物理内存、显卡型号与显存。
 //       显存优先用 nvidia-smi 取精确值，其余走 WMI（Win32_Processor / Win32_VideoController），
 //       全部在后台线程执行，任何一步失败都不影响其它信息和界面。
+// 许可：ModelX Studio 非商业使用许可 1.0（见仓库根 LICENSE）。上游第三方组件（llama.cpp 等）按各自 MIT 许可授权。
 // =====================================================================
 
 using System.ComponentModel;

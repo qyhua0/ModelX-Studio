@@ -37,11 +37,16 @@ public enum EngineVariant { Cpu, Cuda, Vulkan }
 
 public sealed record EngineState(EngineStatus Status, string? ModelPath, string Message);
 
+/// <summary>引擎一次退出的现场信息（代码、当时可用内存、日志尾部），用于归类原因和写问题记录。</summary>
+public sealed record EngineExitInfo(int? ExitCode, long AvailableMb, string LogTail, DateTime At, string? ModelPath, string Reason);
+
 /// <summary>
 /// 推理引擎管理器。引擎二进制（llama.cpp 官方 Windows 版里的 llama-server.exe 及其 dll）
 /// <b>随程序一起打包分发</b>，程序运行时不再联网下载任何东西；本类负责发现它、选中合适的变体、
 /// 以子进程方式跑起来并通过它的 HTTP 接口提供服务（与 LM Studio 同思路）。
 /// 检测到 NVIDIA 显卡时优先使用 CUDA 版，生成速度可提升数倍。
+/// 另外盯着子进程是不是「自己死了」（内存不足被系统干掉 / 自己 abort）：
+/// 以前这种情况只会让界面停在「模型已就绪」然后请求全失败，现在会立刻报错并给出下一步。
 /// </summary>
 public sealed class EngineManager : IAsyncDisposable
 {
@@ -62,10 +67,48 @@ public sealed class EngineManager : IAsyncDisposable
     /// <summary>当前运行实例实际占用的端口；未运行时为 null（设置里改端口不会让地址串台）。</summary>
     private int? _runningPort;
 
+    /// <summary>引擎输出最后若干行，崩了的时候拿它判断原因（OOM / KV 申请不到 / 模型文件坏了）。</summary>
+    private readonly List<string> _logTail = new();
+    private const int LogTailLines = 40;
+
+    /// <summary>正在跑启动流程：这段时间的进程退出由启动循环报，不要和 Exited 事件抢着写状态。</summary>
+    private volatile bool _starting;
+
     public event Action<EngineState>? StateChanged;
     public event Action<string>? LogReceived;
 
+    /// <summary>引擎非主动停止地死掉了（内存不足 / abort）。UI 订阅它把真实原因显示出来。</summary>
+    public event Action<EngineExitInfo>? UnexpectedExit;
+
     public EngineState State { get; private set; } = new(EngineStatus.NotInstalled, null, "正在查找推理引擎…");
+
+    /// <summary>最近一次引擎退出（不管是不是主动停的）。null = 本次运行还没退出过。</summary>
+    public EngineExitInfo? LastExit { get; private set; }
+
+    /// <summary>
+    /// 当前这次启动传给引擎的 <c>-c</c>（上下文长度），未运行时 0。
+    /// 聊天页的上下文进度条必须按这个值算：设置里改了 8192 但没重新加载模型，引擎其实还在跑 4096，
+    /// 按设置值显示会让人以为还有余量，然后被引擎拒掉。
+    /// </summary>
+    public int LastContextArg { get; private set; }
+
+    /// <summary>日志尾部拼成一段文本（设置页/提示里展示用）。</summary>
+    public string LogTail { get { lock (_logTail) return string.Join("\n", _logTail); } }
+
+    /// <summary>
+    /// 自己死掉的那个 Process 对象。不在 Exited 回调里直接 Dispose（.NET 内部还要接着用它上报事件，
+    /// 当场释放偶发会炸 ObjectDisposedException），暂存下来等下次启动/停止时释放。
+    /// </summary>
+    private Process? _deadProcess;
+
+    private void RememberLog(string line)
+    {
+        lock (_logTail)
+        {
+            _logTail.Add(line);
+            if (_logTail.Count > LogTailLines) _logTail.RemoveRange(0, _logTail.Count - LogTailLines);
+        }
+    }
 
     /// <summary>当前运行实例使用的引擎变体。</summary>
     public EngineVariant? RunningVariant { get; private set; }
@@ -367,7 +410,10 @@ public sealed class EngineManager : IAsyncDisposable
         }
 
         var s = _settings.Current;
-        var (temp, topP, topK) = PresetFor(s.GenerationPreset);
+        // 启动参数取 Generation（而不是只取预设三档）：聊天页改滑块时请求体会覆盖这些默认值，
+        // 但引擎自带的 WebUI / 别的客户端调进来时只看得到启动参数，两边保持一致才不致「同一个模型两种脾气」。
+        var g = s.Generation;
+        g.Clamp();
         var port = s.ServerPort;
 
         // 端口被残留进程占用时必须先报错：否则 /health 会被旧进程秒回，界面误报「模型已就绪」
@@ -383,17 +429,11 @@ public sealed class EngineManager : IAsyncDisposable
             }
         }
 
-        var args = string.Join(' ',
-            $"-m \"{modelPath}\"",
-            "--host 127.0.0.1",
-            $"--port {port}",
-            $"-c {s.ContextSize}",
-            $"--temp {temp:0.##}",
-            $"--top-p {topP:0.##}",
-            $"--top-k {topK}",
-            $"--n-gpu-layers {(variant == EngineVariant.Cpu ? 0 : 999)}",
-            "--jinja",
-            "--no-webui");
+        var args = BuildLaunchArgs(modelPath, g, s.ContextSize, port, variant);
+        LastContextArg = s.ContextSize;
+
+        lock (_logTail) _logTail.Clear();
+        _starting = true;
 
         SetState(EngineStatus.Loading, modelPath, variant switch
         {
@@ -423,10 +463,25 @@ public sealed class EngineManager : IAsyncDisposable
             lock (_sync) { _process = proc; }
             RunningVariant = variant;
 
-            proc.OutputDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) LogReceived?.Invoke(e.Data); };
-            proc.ErrorDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) LogReceived?.Invoke(e.Data); };
+            proc.OutputDataReceived += (_, e) =>
+            {
+                if (string.IsNullOrWhiteSpace(e.Data)) return;
+                RememberLog(e.Data);
+                LogReceived?.Invoke(e.Data);
+            };
+            proc.ErrorDataReceived += (_, e) =>
+            {
+                if (string.IsNullOrWhiteSpace(e.Data)) return;
+                RememberLog(e.Data);
+                LogReceived?.Invoke(e.Data);
+            };
             proc.BeginOutputReadLine();
             proc.BeginErrorReadLine();
+
+            // 盯住引擎自己死掉（跑一半被系统干掉）：不监控的话界面会停在「模型已就绪」，
+            // 用户只觉得「它不回话了」，实际卜进程早没了
+            proc.EnableRaisingEvents = true;
+            proc.Exited += (_, _) => OnEngineExited(proc, modelPath);
 
             // 轮询 /health 直到就绪（模型加载完成）
             using var probe = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
@@ -435,11 +490,12 @@ public sealed class EngineManager : IAsyncDisposable
             {
                 if (proc.HasExited)
                 {
+                    var info = ReportExit(proc, modelPath, "加载阶段退出");
                     lock (_sync) { KillProcessNoLock(); }
                     RunningVariant = null;
                     _runningPort = null;
                     SetState(EngineStatus.Failed, null,
-                        $"模型加载失败（进程退出，代码 {proc.ExitCode}）。请检查模型文件、减小上下文长度，或在设置中改用 CPU 引擎。");
+                        $"{info.Headline}。\n{info.Detail}");
                     return;
                 }
 
@@ -483,6 +539,53 @@ public sealed class EngineManager : IAsyncDisposable
             _runningPort = null;
             SetState(EngineStatus.Failed, null, $"启动失败：{ex.Message}");
         }
+        finally
+        {
+            _starting = false;
+        }
+    }
+
+    /// <summary>
+    /// 子进程退出事件。只有「我们没有主动停它」时才报错：
+    /// KillProcessNoLock 会先把 _process 置 null，所以这里用引用比对就能分辨是用户停的还是它自己死的。
+    /// </summary>
+    private void OnEngineExited(Process proc, string modelPath)
+    {
+        lock (_sync)
+        {
+            if (!ReferenceEquals(_process, proc)) return;   // 我们停的（或已经换了一个实例）
+            _process = null;
+            _runningPort = null;
+            RunningVariant = null;
+            LastContextArg = 0;
+        }
+        if (_starting) return;   // 加载阶段由启动循环报，不重复说
+
+        var advice = ReportExit(proc, modelPath, "运行中退出");
+        SetState(EngineStatus.Failed, null, $"模型运行中引擎退出了。\n{advice.Headline}。\n{advice.Detail}");
+        UnexpectedExit?.Invoke(LastExit!);
+
+        lock (_sync) { _deadProcess = proc; }
+    }
+
+    /// <summary>
+    /// 记录退出现场（写 crash-history.log）并归类原因。
+    /// 读 ExitCode 要防一手：进程刚被 Kill 时可能报异常；读不到当 null 处理，不能因此把整个提示弄挂。
+    /// </summary>
+    private EngineExitAdvice ReportExit(Process proc, string modelPath, string stage)
+    {
+        int? code = null;
+        try { code = proc.HasExited ? proc.ExitCode : (int?)null; }
+        catch { /* 进程对象已释放 */ }
+
+        var avail = SystemInfoService.AvailableRamMb();
+        string tail;
+        lock (_logTail) tail = string.Join("\n", _logTail);
+
+        var advice = CrashReporter.ClassifyEngineExit(code, tail, avail);
+        LastExit = new EngineExitInfo(code, avail, tail, DateTime.Now, modelPath, stage);
+        CrashReporter.Append($"[{stage}] 引擎退出 代码={code ?? -1} 可用内存={avail}MB · {advice.Headline}");
+        return advice;
     }
 
     /// <summary>端口上是否已有 HTTP 服务在应答（不区分 200/404，有应答就算被占用）。</summary>
@@ -581,6 +684,7 @@ public sealed class EngineManager : IAsyncDisposable
             }
             RunningVariant = null;
             _runningPort = null;
+            LastContextArg = 0;    // 上下文进度条回到「按设置值估算」
         }
 
         // 本来就没在跑时不要伪报一次「服务已停止」，否则会覆盖引擎缺失等真实状态
@@ -606,15 +710,50 @@ public sealed class EngineManager : IAsyncDisposable
         {
             _process?.Dispose();
             _process = null;
+
+            // 顺手释放上次自己死掉留下的那个进程对象（见 _deadProcess 注释）
+            try { _deadProcess?.Dispose(); } catch { }
+            _deadProcess = null;
         }
     }
 
-    public static (double Temp, double TopP, int TopK) PresetFor(string preset) => preset switch
+    /// <summary>三档预设 → 温度 / top-p / top-k（真正的定义在 GenerationParams，这里只是老调用点的入口）。</summary>
+    public static (double Temp, double TopP, int TopK) PresetFor(string preset) => GenerationParams.PresetFor(preset);
+
+    /// <summary>
+    /// 拼 llama-server 的命令行。单独拆成静态方法是为了能不起服务就断言参数（见 D:\tools\verify\mxstudio\param）。
+    /// 取值规则与请求体一致：采样五项总发，-n / -s 只在用户真设了才发（-1 本来就是 llama.cpp 的「不限 / 随机」语义）。
+    /// 用列表过滤 null 而不是拼完再 Replace("  ", " ")——模型路径里可能有连续空格，那种写法会把文件名改坏。
+    /// </summary>
+    public static string BuildLaunchArgs(string modelPath, GenerationParams generation, int contextSize,
+        int port, EngineVariant variant)
     {
-        "Fast" => (0.3, 0.9, 20),
-        "Quality" => (0.8, 0.95, 40),
-        _ => (0.6, 0.92, 30)
-    };
+        var g = generation ?? new GenerationParams();
+        g.Clamp();
+        return string.Join(' ', new[]
+        {
+            $"-m \"{modelPath}\"",
+            "--host 127.0.0.1",
+            $"--port {port}",
+            $"-c {contextSize}",
+            $"--temp {N(g.Temperature)}",
+            $"--top-p {N(g.TopP)}",
+            $"--top-k {g.TopK}",
+            $"--min-p {N(g.MinP)}",
+            $"--repeat-penalty {N(g.RepeatPenalty)}",
+            g.MaxTokens > 0 ? $"-n {g.MaxTokens}" : null,
+            g.Seed > 0 ? $"-s {g.Seed}" : null,
+            $"--n-gpu-layers {(variant == EngineVariant.Cpu ? 0 : 999)}",
+            "--jinja",
+            "--no-webui",
+        }.Where(a => !string.IsNullOrEmpty(a)));
+    }
+
+    /// <summary>
+    /// 命令行里的数字一律用不变文化：“0.05”不能变成“0,05”——
+    /// 系统区域设成德语/法语时 {0:0.##} 会输出逗号，llama-server 会把参数当成无效值。
+    /// </summary>
+    private static string N(double v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
 
     public ValueTask DisposeAsync()
     {

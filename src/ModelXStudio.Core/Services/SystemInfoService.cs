@@ -204,4 +204,41 @@ public sealed class SystemInfoService
             return 0;
         }
     }
+
+    /// <summary>
+    /// 当前可用物理内存（MB），取不到返回 -1。
+    /// 加载模型前拿它跟文件大小比，比「总内存减去自己」准得多 —— 浏览器占了 10 GB 这种事只有它知道。
+    /// </summary>
+    public static long AvailableRamMb()
+    {
+        try
+        {
+            if (!OperatingSystem.IsWindows()) return -1;
+            var status = new MEMORYSTATUSEX { dwLength = (uint)Marshal.SizeOf<MEMORYSTATUSEX>() };
+            return GlobalMemoryStatusEx(ref status) ? (long)(status.ullAvailPhys / (1024 * 1024)) : -1;
+        }
+        catch
+        {
+            return -1;
+        }
+    }
+
+    /// <summary>
+    /// 还能再向系统要到多少内存（提交额度，MB），取不到返回 -1。
+    /// 物理内存看着不够但分页文件还大的时候（典型：刚把浏览器关掉），这一项才是能不能装下 4 GB 模型的关键，
+    /// 所以预检时取两者的大值。
+    /// </summary>
+    public static long AvailableCommitMb()
+    {
+        try
+        {
+            if (!OperatingSystem.IsWindows()) return -1;
+            var status = new MEMORYSTATUSEX { dwLength = (uint)Marshal.SizeOf<MEMORYSTATUSEX>() };
+            return GlobalMemoryStatusEx(ref status) ? (long)(status.ullAvailPageFile / (1024 * 1024)) : -1;
+        }
+        catch
+        {
+            return -1;
+        }
+    }
 }

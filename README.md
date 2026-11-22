@@ -18,14 +18,16 @@
 
 ## 核心功能
 
-- 💬 **聊天**：流式回复、多会话管理、模型一键切换、Enter 发送
+- 💬 **聊天**：流式回复、**Markdown 排版 + 代码高亮（代码块一键复制）**、多会话（搜索 / 重命名 / 置顶 / 导出 Markdown）、**上下文占用看得见**、模型一键切换、Enter 发送
 - 🚀 **GPU 加速**：有 NVIDIA 显卡优先走 CUDA，没 N 卡但有其它显卡（**包括 Intel / AMD 核显**）走 Vulkan，都没有才用 CPU（`--n-gpu-layers` 全量卸载）；只有 CPU 版时，模型库页会直接告诉你把加速包放到哪个目录；设置中可强制「自动 / CUDA / Vulkan / 仅 CPU」
 - 🖥️ **硬件体检**：自动检测 CPU / 内存 / 显卡显存（NVIDIA 用 nvidia-smi 精确读取，其余走 WMI），生成「你的机器适合多大模型」建议；每个模型卡片按显存/内存实时标注 🟢 GPU 全载 / 🔵 CPU 可跑 / 🟡 偏紧 / ⚠️ 带不动
 - 📚 **模型库**：精选 9 款主流 GGUF 模型（Qwen3 / DeepSeek-R1 / Gemma 3 / Llama 3.2 / Phi-4），断点续传下载；支持粘贴任意 `.gguf` 直链导入；删除 / 定位文件
 - 🔌 **本地服务**：一键启动 OpenAI 兼容 API（仅监听 127.0.0.1，端口默认 8108），复制 curl 示例
-- ⚙️ **设置**：模型目录、端口、上下文长度、下载镜像（默认 hf-mirror.com）
+- ⚙️ **设置**：模型目录、端口、上下文长度与「装不下时怎么办」、给回复预留、Markdown 渲染开关、启动自动加载模型 / 回到上次会话、下载镜像（默认 hf-mirror.com）
+- 🧯 **崩了也不丢**：程序被杀 / 显存不够崩了，重开还是上次那一轮会话，没写完的回复会标出来并可以重新生成
 
 所有数据（模型、对话、设置）都保存在本机 `%LOCALAPPDATA%\ModelXStudio\`，不上传任何内容。
+想换地方（绿盘带着走 / 跑测试）可以用环境变量 `MODELX_HOME` 指到任意目录。
 
 ## 技术架构
 
@@ -38,11 +40,15 @@ src/
 │   │   ├── OpenAiClient.cs     # /v1/chat/completions SSE 流式客户端 + 内存检测
 │   │   ├── DownloadService.cs  # 断点续传下载
 │   │   ├── ModelCatalogService.cs
+│   │   ├── ContextBudget.cs   # 上下文账本：token 估算 / 预算 / 截断计划 / 用真实用量校准
+│   │   ├── RunStateService.cs # run-state.json：本次运行是否在跑 / 在哪个会话 / 哪个模型
 │   │   └── ChatStore.cs / LocalModelScanner.cs / SettingsService.cs
 │   └── Resources/catalog.json  # 精选模型目录
 └── ModelXStudio.App/           # WPF 界面（.NET 8，深色主题，CommunityToolkit.Mvvm）
     ├── Views/                  # 聊天 / 模型库 / 本地服务 / 设置
     ├── ViewModels/
+    ├── Markdown/               # MarkdownX.cs（Markdig → FlowDocument）+ CodeHighlighter.cs（自研分词）
+    ├── Controls/MarkdownView.cs # 聊天消息用的 Markdown 控件（流式节流 / 滚轮透传 / 复制原文）
     └── Themes/Dark.xaml
 ```
 
@@ -185,12 +191,116 @@ dotnet publish src/ModelXStudio.App -c Release -r win-x64 --self-contained -p:Pu
 
 想调快慢/平滑程度，`src/ModelXStudio.Core/Services/DownloadService.cs` 里三个属性：`ProgressReportInterval`（默认 500 ms，上报间隔）、`SpeedWindow`（默认 5 s，窗口长度，想更灵敏就调小）、`SpeedSmoothing`（默认 0.3，越小越平）。界面文案门槛在 `ModelsViewModel.cs` 的 `SpeedDisplay.Step`（默认 0.10）。
 
+## 微调参数（2026-11-15 第七轮）
+
+「AI 对话」页上方多了一个「参数」按钮，按钮上直接写着当前值（例如 `参数 0.6 · 0.92 · 30`），点开是一小块面板，**默认收起** —— 日常用不着一排旋钮，但需要时不必改配置文件。
+
+| 参数 | 范围 | 默认 | 说明 |
+| --- | --- | --- | --- |
+| 温度 | 0 – 2 | 0.6 | 越低越稳、越高越发散 |
+| top-p | 0 – 1 | 0.92 | 核采样 |
+| top-k | 0 – 200 | 30 | 每步最多考虑几个候选词 |
+| min-p | 0 – 0.5 | 0.05 | 按最大概率的比例砍掉低概率词，比 top-p 更狠 |
+| 重复惩罚 | 1 – 2 | 1.0 | 说车轱辘话时往上加一点 |
+| 最大回复长度 | -1 = 不限 | 不限 | 想省钱/防跑飞时设个上限 |
+| 随机种子 | 0 = 每次随机 | 随机 | 想复现同一段回答就填固定值，旁边有「换一个」 |
+| 系统提示词 | 文本 | 空 = 用内置那句 | 想让模型固定扮演什么，写在这里 |
+| 模型标识 | 文本 | 空 = 当前模型文件名 | 请求里的 `model` 字段；连远程 OpenAI 兼容服务时按对方要求填 |
+
+几点说明：
+
+- **改一项就生效**，下一条消息用新值，并自动保存（右上角提示「已自动保存 ✓」）。
+- 顶部原来的「快速 / 均衡 / 高质量」三档**还在**，且和面板是同一份数据：选档位等于把温度/top-p/top-k 写成那三个值；手动改过任何一项，档位显示变成「自定义」。`settings.json` 里的老字段没变含义，老设置照旧读取。
+- 「恢复默认」一键回到出厂值，连系统提示词和模型标识一起清。
+- 温度/top-p/top-k/min-p/重复惩罚既发给本程序的推理服务，也会写进 llama-server 的启动参数；「最大长度」「随机种子」只有你设了具体值才会带上，默认不带（让推理端自己决定）。
+- 数字一律按小数点解析（不受系统区域设置影响）；越界自动夹到范围内的最大/最小值，乱输一个字母则保持上一次的有效值。
+- 若推理服务返回 400，错误提示里会提醒：不是本程序启动的服务时，先把 min-p / 重复惩罚恢复默认再试。
+
+## 会话管理、Markdown 渲染、上下文透明、崩溃恢复（2026-11-22 第八轮）
+
+四件事都来自同一个现实：端侧模型输出很多 markdown / 代码，而跑大模型的程序特别容易被杀。
+
+### 1. 会话列表
+
+- 列表上方有搜索框：按标题过滤，旁边写「命中 N / 共 N」，Esc 清空。**搜索串只含空白时一律显示全部** ——
+  粘进去一个空格就把人筛到「会话怎么不见了」是最坑的一种 bug。
+- 改名三条路：双击列表行、F2、右键菜单（走 `ThemedDialog.AskText`，打开就全选，因为改名是「换个名字」不是「接着打字」）。
+  手改过名字的会话会置 `TitleLocked`，第一条消息不再抢名字。
+- 右键菜单：重命名 / 置顶（`Pinned`，列表只按「置顶 → 新建顺序」排，不按时改来改去，位置乱跳比不能置顶更烦人）/
+  导出为 Markdown / 删除。`Delete` 键也能删；删除有确认，并且提醒先导出。
+- 正在生成回复时不给删（提示先点「停止」）；删掉当前会话后自动选中邻近那一个；全删光了补一个新的空会话，右边不留空壳。
+- 导出（`ChatViewModel.ToMarkdown`）：`# 标题` + 模型名 + 时间段 + 每条 `## 你 / ModelX · 时间`，半截回复带中断标记；
+  文件名过滤非法字符并截到 40 字（用户爱把整句话当标题）。
+
+### 2. Markdown 渲染 + 代码高亮
+
+新增三个文件：`src/ModelXStudio.App/Markdown/MarkdownX.cs`（Markdig → FlowDocument）、
+`src/ModelXStudio.App/Markdown/CodeHighlighter.cs`（自研分词）、`src/ModelXStudio.App/Controls/MarkdownView.cs`（宿主控件）。
+
+- 支持 C# / JS / TS / Python / Java / Kotlin / Go / Rust / C / C++ / SQL / JSON / YAML / XML / HTML / Bash / PowerShell /
+  Diff / INI / Toml / Dockerfile / Makefile。注释比字符串优先（`"#define"` 不能当注释，不然后半篇全黑）。
+- 为什么是 `RichTextBox` 派生而不是 `TextBlock` / `FlowDocumentScrollViewer`：只有它能同时给到 FlowDocument 排版 +
+  选区复制 + 代码块里的「复制」按钮。**两个滚滚条一律 Disabled** 是整套方案的关键：内部 ScrollViewer 关掉后
+  测量高度 = 内容高度，控件能在 ListBox 里自然撑开，不需要算高度也不需要 hack `PART_ContentHost`。
+  代价是自己不能滚动 → 滚轮事件在控件里显式透给父级（`TextBox` 基类会无条件把 MouseWheel 标成已处理）。
+- 流式不抖：Markdig 解析 + 重排不便宜（实测 1 KB ≈ 10 ms、20 KB ≈ 100 ms），`Streaming=true` 时用 DispatcherTimer
+  合并，长回复自动放慢到 260 / 400 ms 一次；文本一模一样直接跳过。关掉流式时立刻补一次，最后一帧不丢。
+- 复制语义：无选区 Ctrl+C 复制的是**原始 Markdown**（从 FlowDocument 里抠出来的选区文本会带奇怪空格/断行），
+  有选区走默认行为（用户要的就是那一段）；代码块右上角「复制」只复制该块。
+- 代码块里的行首空白用 U+00A0 代替普通空格：看起来是缩进，选区复制出去不会变成真换行/丢缩进（但也不能把
+  token 边界上的普通空格一起换成 NBSP，粘进编辑器编译不过）。
+- 空消息不留空气泡（构造里就把文档清成一个空段落）；标题上边距按块序算（同层兄弟块取
+  `min(上块下边距, 本块上边距)`，和 CSS 一致）。
+- 依赖 `Markdig` 0.22.0（MIT，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) §3）；高亮是自己写的，
+  不引入 Highlight.js / pygments。设置里可以整体关掉排版，看原始星号。
+
+### 3. 上下文窗口看得见的占用与截断
+
+- 输入框上方一根进度条：这一轮大概要用多少 token / 窗口多大 + 百分比；≥ 80% 变色，超出写「（已超出）」。
+- tooltip 把三件事说清：窗口现在实际是多少（引擎跑着的 `-c` 与设置里的值不一致时会点名让你重新加载模型）、
+  系统提示词 / 历史 / 这一句各占多少、真装不下的时候会怎么做；引擎返回过真实 usage 后还会附一句「最近一轮实际用了多少」。
+- 账本在 `src/ModelxStudio.Core/Services/ContextBudget.cs`：`TokenEstimator` 按「CJK 0.8 + 拉丁 0.28 + 每条消息 5」估算
+  （llama 的 BPE 下一个汉字差不多就是 1 token，所以系数高于常见的 0.25 直觉）；每轮结束后拿引擎返回的真实
+  prompt tokens 反过来校准系数（0.7 / 0.3 滑动），只准它落在 0.35–2.5，防一次抖动把估算带跑。
+- 两种策略（设置 → 上下文不够时）：`AutoTrim`（默认，自动省略最旧的**整轮**，保住系统提示词与最新尾部，
+  被省略了几条写在提示条上）/ `AskMe`（内容原样发，弹窗由你决定）。连系统提示词 + 这一句都塞不下时直接报错并给三条出路，
+  不发注定被引擎拒的请求。
+- 给回复预留多少可以手写（设置 → 给回复预留），留空 = 自动（按「最大长度」与窗口 1/4 取小的）。
+- 进度条用的是 `Themes/Dark.xaml` 里新写的 `ContextBar` 模板（仓库原来根本没有 `ProgressBar` 样式，
+  默认控件是浅色的，深色主题里会挂一块白）。
+
+### 4. 崩溃恢复与手工加载 / 卸载
+
+- `run-state.json`（数据目录下）每次启动写「本次在跑」，正常退出写回干净。重开时读到「上次没收尾」：
+  顶部提示条 + 进 `crash-history.log` + 一键打开日志（`App.PreviousRun` / `WasAbnormal`）。
+- 会话 Id 在每次切换 / 发送时刷新进 run-state（`App.RunState.UpdateProgress`），所以被杀掉也能回到那一轮
+  （设置 → 对话记录 → 启动后回到上次正在看的会话）。
+- 生成中的回复会**先落盘**（`InProgress=true`，只按会话 Id 定位覆盖，不整表重写）；下次启动时进程已死，
+  `ChatStore.Normalize` 把 `InProgress` 判死为 `Interrupted`，气泡上写「这条回复上次没写完…可以再点一次重新生成」。
+- 模型：首次打开默认加载上次用的那个（`AutoLoadLastModel`）；聊天页模型下拉旁边可以手动「加载 / 卸载」，
+  卸载 = 停掉 llama-server 把内存交出去，会话与参数都留着。
+- 路径可换：`AppSettings.AppDataDirectory` 现在优先读环境变量 `MODELX_HOME`。原来路径是 `static readonly` 字段初始化器，
+  比 `App.OnStartup` 还早跑，测试只能反射改静态字段（并行测试互相打架）；现在测试各自指一个临时目录，普通用户碰不到。
+- OOM / 被系统杀不再只甩一个 exit code：`EngineManager` 拿退出码 + 当时的可用内存分类（显存/内存不够 → OOM →
+  mmap 失败（模型文件坏了）→ KV/n_ctx 太大 → 通用），给的是能照着做的话。
+
+### 5. 验证
+
+全部 harness 在仓库外，一根命令跑完：`bash D:/tools/verify/mxstudio/run-all.sh`（可只跑几个：`... run-all.sh ctx mdx`）。
+
+- `ctx`（新增）：起真 App，`MODELX_HOME` 指临时目录，**三个独立进程**模拟「干净装 → 生成中途被杀 → 重启恢复 → 正常退出 → 再重启」，
+  验会话列表（新建/搜索/重命名/置顶/导出/删除）、崩溃恢复（半截回复标中断、回到上次会话）、上下文占用可视。p1 63 / p2 18 / p3 9 全过。
+- `mdx`（新增）：Markdown 排版 + 代码高亮组件，364 条断言全过，含 4000 例 fuzz 的分词器（拼接必须等于原文、不许死循环）。
+- `xamlcheck`（新增）：静态扇 XAML —— 每个 `StaticResource` 键都存在（专防 `Dark.xaml` 里「引用了后面才定义的键」这种编译不报错、一渲染就炸的坑），
+  每个 `Binding` 路径在视图模型上都有。
+- 回归：`vm` 24 、`dl` 17 、`led` 45 、`param` 14 均 ALL PASS；`dotnet build` Debug / Release 都是 0 警告 0 错误。
+- 根因与踩坑记在 [CODE_REVIEW.md](CODE_REVIEW.md) 第十六节（包括自动化里等 WPF 模态框为什么会死锁、复制出的代码为什么带隐形字符）。
+
 ## 后续路线图
 
 - [ ] 模型首次加载进度百分比（解析 llama-server 日志）
 - [ ] Vulkan 引擎变体（AMD/Intel 显卡加速）+ AMD 显存精确识别
 - [ ] 引擎启动失败时自动回退：CUDA 版跑不起来（驱动过旧等）自动切回 CPU 版
-- [ ] 回复 Markdown 渲染与代码高亮
 - [ ] 系统托盘常驻 + 全局快捷键唤起聊天窗
 - [ ] 安装包（MSIX / Inno Setup）与代码签名（打包时一并携带 llama.cpp 与它的 MIT 许可文本）
 - [ ] 随包引擎自检：启动时校对 `VERSION.txt` 里的 SHA256，DLL 缺失 / 版本不匹配时给明确提示

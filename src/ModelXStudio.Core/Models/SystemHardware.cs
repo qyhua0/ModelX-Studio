@@ -95,6 +95,48 @@ public static class ModelRecommender
         return (ModelFit.Unknown, "");
     }
 
+    /// <summary>
+    /// KV 缓存（上下文本体）粗估，单位 GB。
+    /// 准确值是 <c>2 × 层数 × KV 宽度 × n_ctx × 字节数</c>，但这里拿不到层数与 KV 头数（没解析 GGUF），
+    /// 所以用模型体积做代理：7B 级 GQA 模型 @4096 约 0.5 GB，非 GQA 的同体积约 2 GB，取中间值 0.28 GB/GiB/4k。
+    /// 误差可能到 2 倍，所以文案里写「约」，只用来提醒「你的上下文很吃内存」，不作为硬卡条件。
+    /// </summary>
+    public static double EstimateKvCacheGb(long modelBytes, int contextSize)
+    {
+        if (modelBytes <= 0 || contextSize <= 0) return 0;
+        return modelBytes / GiB * (contextSize / 4096.0) * 0.28;
+    }
+
+    /// <summary>
+    /// 加载前的内存预检（用「当下可用」而不是「总量」：总共 16 GB 但浏览器占了 12 GB 才是真实处境）。
+    /// 返回 Ok=false 时 <see cref="Text"/> 是一段可直接弹出的话，带可操作的下一步。
+    /// 只提醒不拦着：用户可能刚关掉几个程序、或者就是知道自己在干什么，拦死了反而没法用。
+    /// </summary>
+    public static (bool Ok, string Text) Preflight(long modelBytes, int contextSize, long availableMb)
+    {
+        if (modelBytes <= 0 || availableMb < 0) return (true, "");
+
+        var modelGb = modelBytes / GiB;
+        var kvGb = EstimateKvCacheGb(modelBytes, contextSize);
+        var needGb = modelGb + kvGb;
+        var availGb = availableMb / 1024.0;
+
+        // 留 5% 余量：加载过程中引擎自己还要几十到几百 MB，刚好持平的常常就是崩在那一下
+        if (needGb <= availGb * 0.95)
+            return (true, $"模型约 {modelGb:0.#} GB，上下文缓存约 {kvGb:0.#} GB，当下可用 {availGb:0.#} GB，可以加载。");
+
+        var tips = new List<string> { "① 换一个更小的量化档（Q4_K_M 比 Q6/Q8 省三到四成）" };
+        if (contextSize > 1024)
+            tips.Add($"② 把「设置 → 上下文长度」从 {contextSize} 调成 {Math.Max(1024, contextSize / 2)}");
+        tips.Add("③ 先关掉浏览器等占内存的程序（或重启一次系统）");
+        if (kvGb > modelGb * 0.5) tips.Add("④ 这个模型不大，大头是上下文：优先调小上下文长度");
+
+        return (false,
+            $"模型约 {modelGb:0.#} GB，加上 {contextSize} 上下文的缓存约 {kvGb:0.#} GB，\n" +
+            $"但现在只剩 {availGb:0.#} GB 可用，加载很可能失败或被系统关掉。\n\n" +
+            "建议：\n" + string.Join("\n", tips));
+    }
+
     /// <summary>生成硬件概况三行文案（检测不到的部分自动省略）。</summary>
     public static (string Line1, string Line2, string Advice) Summarize(SystemHardware hw)
     {

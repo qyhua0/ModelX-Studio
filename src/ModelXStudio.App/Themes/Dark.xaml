@@ -883,4 +883,101 @@
         </Style.Triggers>
     </Style>
 
+    <!-- ==================== 滑块（微调参数面板） ====================
+         WPF 默认的 Slider 模板是浅色系统的，深色界面里会变成一条白杆；只重画模板不动颜色令牌。
+         只做了横向：竖向微调没需求，加了反而多一堆没人用的分支。 -->
+
+    <ControlTemplate x:Key="ParamSliderThumbTemplate" TargetType="Thumb">
+        <Border x:Name="ring" Width="14" Height="14" CornerRadius="7"
+                Background="{StaticResource BrushAccent}"
+                BorderBrush="{StaticResource BrushBorderStrong}" BorderThickness="1" />
+        <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="ring" Property="Background" Value="{StaticResource BrushAccentHover}" />
+            </Trigger>
+            <Trigger Property="IsDragging" Value="True">
+                <Setter TargetName="ring" Property="Background" Value="{StaticResource BrushAccentPressed}" />
+            </Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
+
+    <ControlTemplate x:Key="ParamSliderTrackButtonTemplate" TargetType="RepeatButton">
+        <Border Background="Transparent" Height="20" />
+    </ControlTemplate>
+
+    <ControlTemplate x:Key="ParamSliderFillButtonTemplate" TargetType="RepeatButton">
+        <Grid Background="Transparent" Height="20">
+            <Border Height="4" CornerRadius="2" Background="{StaticResource BrushAccentFill}" VerticalAlignment="Center" />
+        </Grid>
+    </ControlTemplate>
+
+    <Style x:Key="ParamSliderThumb" TargetType="Thumb">
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Width" Value="14" />
+        <Setter Property="Height" Value="14" />
+        <Setter Property="Template" Value="{StaticResource ParamSliderThumbTemplate}" />
+    </Style>
+
+    <!-- 未走过的轨道：透明，但要有高度才能接住点击 -->
+    <Style x:Key="ParamSliderTrackButton" TargetType="RepeatButton">
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template" Value="{StaticResource ParamSliderTrackButtonTemplate}" />
+    </Style>
+
+    <!-- 已走过的部分画成强调色，不拖滑块也能看出大概位置 -->
+    <Style x:Key="ParamSliderFillButton" TargetType="RepeatButton">
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template" Value="{StaticResource ParamSliderFillButtonTemplate}" />
+    </Style>
+
+    <!-- 上面三个 Style 必须排在它前面：ResourceDictionary 里的 StaticResource 按文档顺序解析，
+         模板引了后面才定义的样式，编译不报错，运行时才炸 XamlParseException（本机就这么被 smoke 抬出来过一次）。
+         护栏：D:/tools/verify/mxstudio/param 的第 14 项会整本扫 Dark.xaml 的引用顺序。 -->
+    <ControlTemplate x:Key="ParamSliderTemplate" TargetType="Slider">
+        <Grid Height="20" Background="Transparent">
+            <Border Height="4" CornerRadius="2" Background="{StaticResource BrushPanelAlt}"
+                    BorderBrush="{StaticResource BrushBorderSoft}" BorderThickness="1" VerticalAlignment="Center" />
+            <Track x:Name="PART_Track" Orientation="Horizontal">
+                <Track.DecreaseRepeatButton>
+                    <RepeatButton Style="{StaticResource ParamSliderFillButton}" Command="Slider.DecreaseLarge" />
+                </Track.DecreaseRepeatButton>
+                <Track.IncreaseRepeatButton>
+                    <RepeatButton Style="{StaticResource ParamSliderTrackButton}" Command="Slider.IncreaseLarge" />
+                </Track.IncreaseRepeatButton>
+                <Track.Thumb>
+                    <Thumb Style="{StaticResource ParamSliderThumb}" />
+                </Track.Thumb>
+            </Track>
+        </Grid>
+    </ControlTemplate>
+
+    <Style x:Key="ParamSlider" TargetType="Slider">
+        <Setter Property="Minimum" Value="0" />
+        <Setter Property="Maximum" Value="1" />
+        <Setter Property="IsMoveToPointEnabled" Value="True" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="MinHeight" Value="20" />
+        <Setter Property="Template" Value="{StaticResource ParamSliderTemplate}" />
+    </Style>
+
+    <!-- 参数行左侧的名字与右侧的解释文字，统一字号统一颜度，八行看起来才不乱 -->
+    <Style x:Key="ParamLabel" TargetType="TextBlock">
+        <Setter Property="Width" Value="86" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{StaticResource BrushText}" />
+    </Style>
+
+    <Style x:Key="ParamHint" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="8,0,0,0" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{StaticResource BrushTextFaint}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
 </ResourceDictionary>

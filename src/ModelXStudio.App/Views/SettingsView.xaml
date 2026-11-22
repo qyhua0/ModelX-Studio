@@ -1,8 +1,9 @@
 <!--
     作者：zhenhua
-    功能：设置页界面：模型存放目录、本地服务端口、HuggingFace 镜像站点、上下文长度、
+    功能：设置页界面：模型存放目录、本地服务端口、HuggingFace 镜像站点、上下文长度与「装不下时怎么办」、
           默认生成风格、引擎偏好（自动 / CUDA / Vulkan / 仅 CPU）、随包 llama.cpp 引擎状态与目录（可改指向已有引擎）、
-          开机自动加载上次模型、保存结果提示，以及底部的 llama.cpp 致谢与非商业许可说明。
+          启动自动加载上次模型、启动回到上次会话、Markdown 渲染开关、保存结果提示，
+          以及底部的 llama.cpp 致谢与非商业许可说明。
     许可：ModelX Studio 非商业使用许可 1.0（见仓库根 LICENSE）。上游第三方组件（llama.cpp 等）按各自 MIT 许可授权。
 -->
 <UserControl x:Class="ModelXStudio.App.Views.SettingsView"
@@ -56,8 +57,9 @@
 
                     <!-- 风格 -->
                     <TextBlock Grid.Row="3" Text="默认回复风格" VerticalAlignment="Center" Margin="0,8" />
-                    <ComboBox Grid.Row="3" Grid.Column="1" Width="110" HorizontalAlignment="Left" Margin="0,8"
-                              ItemsSource="{Binding PresetLabels}" SelectedItem="{Binding DefaultPreset}" />
+                    <ComboBox Grid.Row="3" Grid.Column="1" Width="150" HorizontalAlignment="Left" Margin="0,8"
+                              ItemsSource="{Binding PresetLabels}" SelectedItem="{Binding DefaultPreset}"
+                              ToolTip="只决温度 / top-p / top-k 三个常用值。&#10;min-p、重复惩罚、系统提示词、随机种子这些单项微调在「AI 对话」页上方的「参数」面板里。" />
 
                     <!-- 镜像 -->
                     <TextBlock Grid.Row="4" Text="模型下载镜像" VerticalAlignment="Center" Margin="0,8" />
@@ -103,6 +105,50 @@
                                TextWrapping="Wrap" Margin="0,0,0,6"
                                Foreground="{StaticResource BrushTextFaint}"
                                Text="本程序不再联网下载推理引擎：llama.cpp 随安装包一起提供。缺文件时到「模型库」页按提示补上。" />
+                </Grid>
+            </Border>
+
+            <!-- 对话与显示：上下文装不下怎么办、预留多少、要不要渲染 Markdown、重启后回到哪 -->
+            <TextBlock Text="对话与显示" FontSize="13" FontWeight="SemiBold" Margin="2,16,0,8" />
+            <Border Style="{StaticResource Card}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="上下文不够时" VerticalAlignment="Center" Margin="0,8" />
+                    <ComboBox Grid.Row="0" Grid.Column="1" Width="230" HorizontalAlignment="Left" Margin="0,8"
+                              ItemsSource="{Binding ContextStrategyOptions}" SelectedItem="{Binding ContextStrategyOption}"
+                              ToolTip="聊天窗口（上下文）就那么大。装不下时：&#10;· 自动省略最旧的几轮：悄悄丢掉最早的消息，接着聊，不打断你；&#10;· 先问我：内容原样发，弹出提示由你决定是继续还是开新会话。&#10;（进度条和「约用了多少上下文」显示在「AI 对话」页输入框上方。）" />
+
+                    <TextBlock Grid.Row="1" Text="给回复预留" VerticalAlignment="Center" Margin="0,8" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Width="110" HorizontalAlignment="Left" Margin="0,8"
+                             Text="{Binding ContextReserveTokens}"
+                             ToolTip="留空 = 自动（按「最大长度」与上下文的 1/4 取小的）。&#10;想让模型一次写长文又不出窗口，可以手动填个大点的数。单位是 token。" />
+
+                    <TextBlock Grid.Row="2" Text="回复显示" VerticalAlignment="Center" Margin="0,8" />
+                    <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,8">
+                        <CheckBox Content="用 Markdown 排版回复（标题 / 列表 / 表格 / 代码高亮 + 一键复制）"
+                                  IsChecked="{Binding RenderMarkdown}" />
+                        <TextBlock Text="勾掉就按纯文本显示，想知道「这段到底是模型写的还是排版弄的」时用它对照。"
+                                   FontSize="11" Margin="22,4,0,0" TextWrapping="Wrap"
+                                   Foreground="{StaticResource BrushTextFaint}" />
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="3" Text="对话记录" VerticalAlignment="Center" Margin="0,8" />
+                    <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,8">
+                        <CheckBox Content="启动后回到上次正在看的会话" IsChecked="{Binding RestoreLastChat}" />
+                        <TextBlock Text="程序被关掉、被系统杀掉、显存不够崩了都管用：重开还是那一轮，最后一条没写完的回复会标出来并补一个「重新生成」。"
+                                   FontSize="11" Margin="22,4,0,0" TextWrapping="Wrap"
+                                   Foreground="{StaticResource BrushTextFaint}" />
+                    </StackPanel>
                 </Grid>
             </Border>
 

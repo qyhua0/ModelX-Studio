@@ -20,6 +20,21 @@ public partial class MainWindow : Window
         ViewModels.DataContext = App.Models;
         ViewServer.DataContext = App.Server;
         ViewSettings.DataContext = App.Settings;
+
+        // 页面跳转：聊天页上那些「去设置改上下文」按钮靠它。没这个接口的话提示只能停在
+        // 「你去设置里看看」，用户自己得先搞清楚设置在哪一格。
+        App.NavigateRequested = page =>
+        {
+            var radio = page switch
+            {
+                "chat" => NavChat,
+                "models" => NavModels,
+                "server" => NavServer,
+                "settings" => NavSettings,
+                _ => null,
+            };
+            if (radio != null) radio.IsChecked = true;   // 认不了的页面名直接忽略，不抱错
+        };
     }
 
     protected override void OnSourceInitialized(EventArgs e)

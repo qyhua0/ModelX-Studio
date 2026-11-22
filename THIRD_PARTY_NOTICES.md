@@ -96,14 +96,49 @@ SOFTWARE.
 ```
 
 
-## 3. .NET 运行时与 WPF
+## 3. Markdig（Markdown 解析，聊天消息渲染）
+
+- 项目：https://github.com/xoofx/markdig （NuGet 包 `Markdig` 0.22.0）
+- 版权：Alexandre Mutel
+- 许可：**MIT License**（标准 MIT 文本，版权行换成 `Alexandre Mutel`）
+- 用在哪：只用来把模型输出的 Markdown 解析成语法树，再由 `src/ModelXStudio.App/Markdown/MarkdownX.cs` 转成 WPF 的
+  FlowDocument 显示（表格/列表/代码块）。**不联网**，不拉字体，不动态加载插件；代码高亮是自己写的
+  （`Markdown/CodeHighlighter.cs`），不依赖 Highlight.js / pygments 之类。
+- 义务：MIT 只需在分发物里保留下面的版权与许可文本（本文件就是）。
+
+```
+MIT License
+
+Copyright (c) 2018 Alexandre Mutel
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+
+## 4. .NET 运行时与 WPF
 
 本项目基于 Microsoft .NET 8 / WPF 构建（`net8.0`、`net8.0-windows`）。
 .NET 运行时与 WPF 同为开源项目（MIT 许可），由 `dotnet` SDK 与 Windows 提供，
 我们不再额外分发。
 
 
-## 4. 模型权重（不属于本项目）
+## 5. 模型权重（不属于本项目）
 
 「模型库」页面里的模型是各家机构发布的权重文件，从 Hugging Face / hf-mirror /
 ModelScope 下载，**不属于本软件，也不受本项目许可授权**。常见例子：
@@ -130,18 +165,19 @@ ModelScope 下载，**不属于本软件，也不受本项目许可授权**。�
 - https://github.com/meta-llama/llama-models/blob/main/models/llama3_2/LICENSE
 - https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-32B/discussions/1
 
-## 5. 字体与界面图标
+## 6. 字体与界面图标
 
 界面使用系统字体（Microsoft YaHei UI / Segoe UI），不随安装包分发字体文件；
 导航图标是本项目自绘的矢量 `Path` 几何，不是第三方图标库。
 
 
-## 6. 分发时的义务清单（给别人 fork / 打包时照抄）
+## 7. 分发时的义务清单（给别人 fork / 打包时照抄）
 
 1. 保留 `LICENSE`（本项目，禁止商用）与本文件。
 2. 保留源代码文件头里的「作者：zhenhua」与功能描述注释。
 3. 随包分发 llama.cpp 二进制时，一起带上 `runtime/llama/LICENSE-MIT-llama-cpp.txt`，
    并在界面或文档里保留对 llama.cpp / GGML 的致谢。
-4. 说明你的版本是否改过、改了什么。
-5. 别把模型权重打包进你的分发物（体积、许可都有问题），让用户自己下载。
-6. 想商用？请先联系本项目许可人取得书面授权，并逐一确认上游组件与模型的许可。
+4. 用到 Markdig（聊天渲染）时，保留上面 §3 的 MIT 文本；升级 Markdig 大版本时顺手把本节的版本号与版权行对一下。
+5. 说明你的版本是否改过、改了什么。
+6. 别把模型权重打包进你的分发物（体积、许可都有问题），让用户自己下载。
+7. 想商用？请先联系本项目许可人取得书面授权，并逐一确认上游组件与模型的许可。

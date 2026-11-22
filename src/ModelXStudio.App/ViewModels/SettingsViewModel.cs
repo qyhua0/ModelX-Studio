@@ -55,13 +55,34 @@ public partial class SettingsViewModel : ObservableObject
 
     public List<string> ContextOptions { get; } = new() { "2048", "4096", "8192", "16384", "32768" };
 
+    // 上下文策略：界面上说人话，存盘只存枚举名（AutoTrim / AskMe）。标签写成常量而不是
+    // StartsWith 去猜，改字不会把设置读成另一种策略。
+    private const string TrimLabel = "自动省略最旧的几轮（默认）";
+    private const string AskLabel = "先问我，别自己删";
+
+    public List<string> ContextStrategyOptions { get; } = new() { TrimLabel, AskLabel };
+
+    [ObservableProperty]
+    private string _contextStrategyOption = TrimLabel;
+
+    /// <summary>给回复预留的 token。空着 = 自动（按「最大长度」与窗口 1/4 取小的）。</summary>
+    [ObservableProperty]
+    private string _contextReserveTokens = "";
+
+    [ObservableProperty]
+    private bool _renderMarkdown = true;
+
+    [ObservableProperty]
+    private bool _restoreLastChat = true;
+
     public List<string> MirrorOptions { get; } = new()
     {
         "https://hf-mirror.com",
         "https://huggingface.co"
     };
 
-    public List<string> PresetLabels { get; } = new() { "快速", "均衡", "高质量" };
+    /// <summary>选了「自定义」就保留聊天页里调好的单项参数，不强行盖回去。</summary>
+    public List<string> PresetLabels { get; } = new() { "快速", "均衡", "高质量", "自定义" };
 
     /// <summary>当前使用的引擎目录（随程序分发的 runtime\llama\…，没找到时是应当放入的目录）。</summary>
     public string EngineDirectory => App.Engine.ActiveEngineFolder;
@@ -76,6 +97,10 @@ public partial class SettingsViewModel : ObservableObject
         ServerPort = s.ServerPort;
         HfMirror = s.HfMirror;
         ContextSizeOption = s.ContextSize.ToString();
+        ContextStrategyOption = ContextBudget.ParseStrategy(s.ContextStrategy) == ContextStrategy.AskMe ? AskLabel : TrimLabel;
+        ContextReserveTokens = s.ContextReserveTokens > 0 ? s.ContextReserveTokens.ToString() : "";
+        RenderMarkdown = s.RenderMarkdown;
+        RestoreLastChat = s.RestoreLastChat;
         AutoLoadLastModel = s.AutoLoadLastModel;
         EnginePreference = s.EnginePreference switch
         {
@@ -89,6 +114,7 @@ public partial class SettingsViewModel : ObservableObject
         {
             "Fast" => "快速",
             "Quality" => "高质量",
+            "Custom" => "自定义",
             _ => "均衡"
         };
     }
@@ -103,6 +129,11 @@ public partial class SettingsViewModel : ObservableObject
         s.ServerPort = ServerPort is >= 1024 and <= 65535 ? ServerPort : 8108;
         s.HfMirror = string.IsNullOrWhiteSpace(HfMirror) ? "https://hf-mirror.com" : HfMirror.Trim();
         s.ContextSize = int.TryParse(ContextSizeOption, out var ctx) ? ctx : 4096;
+        s.ContextStrategy = ContextStrategyOption == AskLabel ? "AskMe" : "AutoTrim";
+        // 留空 / 写乱码都当「自动」，而不是干脆不给存：否则用户改错了会永远卡在上一个值
+        s.ContextReserveTokens = int.TryParse(ContextReserveTokens, out var rsv) && rsv > 0 ? rsv : 0;
+        s.RenderMarkdown = RenderMarkdown;
+        s.RestoreLastChat = RestoreLastChat;
         s.AutoLoadLastModel = AutoLoadLastModel;
         s.EnginePreference = EnginePreference switch
         {
@@ -115,8 +146,11 @@ public partial class SettingsViewModel : ObservableObject
         {
             "快速" => "Fast",
             "高质量" => "Quality",
+            "自定义" => "Custom",
             _ => "Balanced"
         };
+        // 这里只重盖温度/top-p/top-k 三项；min-p、重复惩罚、系统提示词这些单项设置归聊天页的「参数」面板
+        if (s.GenerationPreset != "Custom") s.Generation.ApplyPreset(s.GenerationPreset);
 
         s.EngineRoot = string.IsNullOrWhiteSpace(EngineRoot) ? null : EngineRoot.Trim();
 

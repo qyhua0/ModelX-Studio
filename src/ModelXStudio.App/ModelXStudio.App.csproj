@@ -22,6 +22,9 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+    <!-- Markdown 解析（聊天里渲染模型输出）。钉在 0.22.0：这是本仓库离线环境里已有、
+         且代码只用得到它的公开 AST  API 的版本；升大版本时 Markdown/MarkdownX.cs 里的块遍历要跟着看一遍。 -->
+    <PackageReference Include="Markdig" Version="0.22.0" />
     <ProjectReference Include="..\ModelXStudio.Core\ModelXStudio.Core.csproj" />
   </ItemGroup>
 

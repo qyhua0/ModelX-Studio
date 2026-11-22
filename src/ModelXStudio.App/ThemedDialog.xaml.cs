@@ -37,28 +37,37 @@ public partial class ThemedDialog : Window
 
     /// <summary>普通提示。</summary>
     public static void Info(string message, string title = "提示") =>
-        Prompt(message, title, "i", "BrushAccent", false, "确定", "取消");
+        Prompt(message, title, "i", "BrushAccent", false, "确定", "取消", null, out _);
 
     /// <summary>成功提示。</summary>
     public static void Success(string message, string title = "完成") =>
-        Prompt(message, title, "✓", "BrushSuccess", false, "确定", "取消");
+        Prompt(message, title, "✓", "BrushSuccess", false, "确定", "取消", null, out _);
 
     /// <summary>注意事项（不严重）。</summary>
     public static void Warn(string message, string title = "注意") =>
-        Prompt(message, title, "!", "BrushWarning", false, "确定", "取消");
+        Prompt(message, title, "!", "BrushWarning", false, "确定", "取消", null, out _);
 
     /// <summary>错误提示。</summary>
     public static void Error(string message, string title = "出错了") =>
-        Prompt(message, title, "×", "BrushDanger", false, "确定", "取消");
+        Prompt(message, title, "×", "BrushDanger", false, "确定", "取消", null, out _);
 
     /// <summary>需要用户决定，返回 true 表示点了确定。</summary>
     public static bool Confirm(string message, string title = "请确认",
         string okText = "确定", string cancelText = "取消") =>
-        Prompt(message, title, "?", "BrushAccent", true, okText, cancelText);
+        Prompt(message, title, "?", "BrushAccent", true, okText, cancelText, null, out _);
+
+    /// <summary>
+    /// 要用户输一行文字（重命名会话这类）。点「取消」或整个弹窗挂掉时返回 null ——
+    /// 调用方要区分「没输入」与「输入了空字符串」，所以不把 null 和 "" 混在一起。
+    /// </summary>
+    public static string? AskText(string message, string title, string initial, string okText = "保存") =>
+        Prompt(message, title, "✎", "BrushAccent", true, okText, "取消", initial, out var text) ? text : null;
 
     private static bool Prompt(string message, string title, string glyph,
-        string glyphBrushKey, bool confirm, string okText, string cancelText)
+        string glyphBrushKey, bool confirm, string okText, string cancelText,
+        string? initial, out string? text)
     {
+        text = null;
         var app = Application.Current;
         if (app == null)
         {
@@ -85,11 +94,22 @@ public partial class ThemedDialog : Window
                 dlg.CancelBtn.Content = cancelText;
             }
 
+            if (initial != null)
+            {
+                dlg.Input.Visibility = Visibility.Visible;
+                dlg.Input.Text = initial;
+                // 打开就全选：重命名是「换个名字」，不是「在原名后面接着打字」
+                dlg.Input.SelectAll();
+                dlg.Input.Focus();
+            }
+
             var owner = app.Windows.OfType<Window>().FirstOrDefault(w => !ReferenceEquals(w, dlg) && w.IsActive && w.IsVisible)
                         ?? (app.MainWindow is { IsVisible: true } mw ? mw : null);
             if (owner != null) dlg.Owner = owner;
 
-            return dlg.ShowDialog() == true;
+            var ok = dlg.ShowDialog() == true;
+            if (ok) text = dlg.Input.Text;
+            return ok;
         }
         catch
         {
@@ -97,6 +117,7 @@ public partial class ThemedDialog : Window
             MessageBox.Show(message, title,
                 confirm ? MessageBoxButton.OKCancel : MessageBoxButton.OK,
                 confirm ? MessageBoxImage.Question : MessageBoxImage.Information);
+            text = null;
             return false;
         }
     }

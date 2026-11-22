@@ -209,7 +209,7 @@
                                Foreground="{StaticResource BrushTextDim}" TextTrimming="CharacterEllipsis" />
                     <ComboBox Grid.Column="1" Width="220" VerticalAlignment="Center"
                               ItemsSource="{Binding ModelOptions}" SelectedItem="{Binding SelectedModel}"
-                              DisplayMemberPath="DisplayName" ToolTip="切换模型（需已下载）。选中即加载；想先不加载，去「设置」关掉自动加载"
+                              DisplayMemberPath="DisplayName" ToolTip="选一个模型（需已下载）。&#10;选中后只会先问一句，你点「加载」才真装进内存；换模型会先停掉当前那个。&#10;开机要不要自动加载上次那个，在「设置」里开关。"
                               Tag="还没有已下载的模型，先到「模型库」下载" />
                     <ComboBox Grid.Column="2" Width="96" Margin="8,0,0,0" VerticalAlignment="Center"
                               ItemsSource="{Binding PresetOptions}" SelectedItem="{Binding SelectedPreset}"

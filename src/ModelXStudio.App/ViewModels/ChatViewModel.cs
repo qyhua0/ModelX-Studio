@@ -267,11 +267,42 @@ public partial class ChatViewModel : ObservableObject
         SaveParamsSoon();
     }
 
+    /// <summary>
+    /// 下拉里选中一项 ≠ 要把它读进内存：一个模型几个 G，选一下就加载会把人吓到（而且很容易误触）。
+    /// 先弹一句「要加载吗」+ 内存够不够；用户取消就把下拉退回当前在跑那个 ——
+    /// 不退回更坑：上面写着 B、实际跑的还是 A，比自动加载更难发现。
+    /// </summary>
     partial void OnSelectedModelChanged(LocalModel? value)
     {
         if (_syncing || value == null) return;
-        if (App.Engine.State.ModelPath == value.FilePath) return;
-        _ = App.Models.LoadModelAsync(value.FilePath);
+
+        var running = App.Engine.State.ModelPath;
+        if (string.Equals(running, value.FilePath, StringComparison.OrdinalIgnoreCase)) return;
+
+        if (!ModelLoadGuard.Confirm(value.FilePath, ModelLoadAsking.Ask))
+        {
+            _syncing = true;
+            SelectedModel = ModelOptions.FirstOrDefault(m =>
+                string.Equals(m.FilePath, running, StringComparison.OrdinalIgnoreCase));
+            _syncing = false;
+            return;
+        }
+
+        _ = LoadSelectedModelAsync(value);
+    }
+
+    /// <summary>把下拉里选中的模型装进内存。转圈由 IsModelBusy 表示，失败原因走引擎状态提示。</summary>
+    private async Task LoadSelectedModelAsync(LocalModel m)
+    {
+        IsModelBusy = true;
+        try
+        {
+            await App.Models.LoadModelAsync(m.FilePath);
+        }
+        finally
+        {
+            IsModelBusy = false;
+        }
     }
 
     private static string LabelToKey(string label) => label switch
@@ -626,6 +657,8 @@ public partial class ChatViewModel : ObservableObject
             ThemedDialog.Warn("正在生成回复，先点「停止」。", "暂时不能重新加载");
             return;
         }
+        // 重新加载比首次加载更容易爆：上一个还在内存里呢（引擎会先停旧的，但可用内存还是那张脸）
+        if (!ModelLoadGuard.Confirm(path, ModelLoadAsking.PreflightOnly)) return;
 
         IsModelBusy = true;
         try

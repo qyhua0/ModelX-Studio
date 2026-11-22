@@ -475,8 +475,14 @@ public partial class LocalModelVm : ObservableObject
         FitText = text;
     }
 
+    /// <summary>卡片上的「加载」是明确意图，不再同一道塞一个「要不要加载」；但内存不够得先说，
+    /// 不能让人等两三分钟再看它崩。</summary>
     [RelayCommand]
-    private Task Load() => App.Models.LoadModelAsync(Model.FilePath);
+    private void Load()
+    {
+        if (!ModelLoadGuard.Confirm(Model.FilePath, ModelLoadAsking.PreflightOnly)) return;
+        _ = App.Models.LoadModelAsync(Model.FilePath);
+    }
 
     [RelayCommand]
     private void Delete()

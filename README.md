@@ -284,7 +284,22 @@ dotnet publish src/ModelXStudio.App -c Release -r win-x64 --self-contained -p:Pu
 - OOM / 被系统杀不再只甩一个 exit code：`EngineManager` 拿退出码 + 当时的可用内存分类（显存/内存不够 → OOM →
   mmap 失败（模型文件坏了）→ KV/n_ctx 太大 → 通用），给的是能照着做的话。
 
-### 5. 验证
+### 5. 补充（同日晚上）：加载模型先问一句，右键菜单跟主题
+
+- **下拉选中不再直接加载**。选中一项只会弹一句「要加载「X」吗？」，你点「加载」才真装进内存；
+  点取消则下拉退回当前在跑的那一项（不会出现「下拉显示 B、实际跑 A」）。已经明确点了「加载」按钮的地方
+  （模型库卡片、重新加载）不再多拦一道。
+- **内存不够在加载之前就说**。判定用 `ModelRecommender.Preflight`（按当下可用内存算，不是总量），
+  文案里带上模型多大、上下文缓存多大、现在还剩多少，以及换小量化档 / 调小上下文 / 关程序这些能照着做的下一步；
+  仍然可以尝试加载（失败了引擎退出，原因进问题记录，不会坏文件）。
+- **已经挂着一个模型时**，弹窗会讲清楚：当前挂着谁、加载新的会先停掉它、那部分内存会还回来
+  （预检已经把这笔算进去了，否则 16 GB 机器上换个稍大的模型会被误判成装不下）。
+- **开机自动加载不弹窗**，但内存明显不够也不硬上（崩一次比多选一次麻烦），原因写在顶部提示条与问题记录里。
+- **右键菜单现在跟主题一致**（之前会话列表右键是白底白字，几乎看不清）：`Themes/Dark.xaml`
+  补齐 `ContextMenu` / `MenuItem` / `Separator` 隐式样式（勾选列、快捷键列、子菜单箭头、高亮行、禁用态）。
+  下拉旁边的提示、鼠标悬停文案同步改了。
+
+### 6. 验证
 
 全部 harness 在仓库外，一根命令跑完：`bash D:/tools/verify/mxstudio/run-all.sh`（可只跑几个：`... run-all.sh ctx mdx`）。
 
@@ -293,8 +308,11 @@ dotnet publish src/ModelXStudio.App -c Release -r win-x64 --self-contained -p:Pu
 - `mdx`（新增）：Markdown 排版 + 代码高亮组件，364 条断言全过，含 4000 例 fuzz 的分词器（拼接必须等于原文、不许死循环）。
 - `xamlcheck`（新增）：静态扇 XAML —— 每个 `StaticResource` 键都存在（专防 `Dark.xaml` 里「引用了后面才定义的键」这种编译不报错、一渲染就炸的坑），
   每个 `Binding` 路径在视图模型上都有。
-- 回归：`vm` 24 、`dl` 17 、`led` 45 、`param` 14 均 ALL PASS；`dotnet build` Debug / Release 都是 0 警告 0 错误。
-- 根因与踩坑记在 [CODE_REVIEW.md](CODE_REVIEW.md) 第十六节（包括自动化里等 WPF 模态框为什么会死锁、复制出的代码为什么带隐形字符）。
+- 回归：`vm` 32（含新加的 25–32：加载确认的三种力度、内存账、取消退回且不启动引擎）、`dl` 18、`led` 53
+  （含右键菜单隐式样式、菜单底色/前景、高亮行对比 10.1:1、把菜单真渲出来量白块占比与 WCAG 对比度，产物 `menu.png`）、
+  `param` 14 均 ALL PASS；`dotnet build` Debug / Release 都是 0 警告 0 错误。
+- 根因与踩坑记在 [CODE_REVIEW.md](CODE_REVIEW.md) 第十五、十六节（包括自动化里等 WPF 模态框为什么会死锁、
+  复制出的代码为什么带隐形字符、菜单为什么会白底白字）。
 
 ## 后续路线图
 

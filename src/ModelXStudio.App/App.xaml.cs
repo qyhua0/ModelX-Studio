@@ -128,6 +128,15 @@ public partial class App : Application
             return;
         }
 
+        // 开机自动加载不能弹窗（会让人以为程序卡死），但内存明显不够时也不硬上：
+        // 崩一次比多选一次麻烦多了。
+        if (!ModelLoadGuard.Confirm(path, ModelLoadAsking.Silent))
+        {
+            Chat.AwaitLoadHint = $"内存不够，没自动加载 {Path.GetFileName(path)}：" +
+                                 "关掉几个占内存的程序后在上方下拉里选它（或换个小的量化档）";
+            return;
+        }
+
         Chat.AwaitLoadHint = $"正在加载上次的模型 {Path.GetFileName(path)}…";
         FireAndForget(() => Models.LoadModelAsync(path), "自动加载上次的模型");
     }

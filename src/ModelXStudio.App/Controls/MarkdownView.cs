@@ -15,7 +15,8 @@
 //     文本一模一样就直接跳过 —— 定时器每 tick 都重排一遍同样的文档是纯浪费。
 //   · 复制语义：从 FlowDocument 里抠出来的选区文本会有奇怪的空格/断行，而消息气泡外面本来就要「复制全文」，
 //     所以无选区时直接把这条消息的原始 markdown 写进剪贴板；有选区时走 RichTextBox 默认行为（用户要的就是那段）。
-//   · ContextMenu 置 null：宿主气泡上已经有复制按钮，而且系统那个剪贴板菜单是亮色的，跟深色主题打架。
+//   · 右键菜单不自己搭：`Themes/Dark.xaml` 里有整套 ContextMenu / MenuItem 样式，
+//     控件默认的「复制 / 全选」菜单已经是深色底，不需要再置 null 去遮丑。
 //   · 颜色/字号透传：FlowDocument 里隐式 Style 不生效，所以字号字体必须显式写进文档；
 //     文档前景色用主题 key（MdText）而不是控件 Foreground，控件 Foreground 留给宿主自己决定。
 //   · 不订阅 RichTextBox.Document 的变更事件：所有更新都从 Markdown DP 进来，方向单一，不会出现自激。
@@ -71,7 +72,6 @@ public sealed class MarkdownView : RichTextBox
         Padding = new Thickness(0);
         IsTabStop = false;                  // Tab 应该在输入框之间跳，不该逐条消息跳
         Cursor = Cursors.IBeam;
-        ContextMenu = null;
         VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
         HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
 

@@ -616,6 +616,129 @@
         </Setter>
     </Style>
 
+    <!-- ================= 右键菜单 =================
+         原来根本没有 ContextMenu / MenuItem 样式：菜单底板用系统浅色（白底），
+         而菜单里的文字被上面那条隐式 TextBlock 样式刷成了 BrushText（近白）——
+         白底白字，右键菜单等于看不清。这里整套重画，跟窗口同一个配色。 -->
+    <Style TargetType="ContextMenu">
+        <Setter Property="Background" Value="{StaticResource BrushPopup}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BrushBorderStrong}" />
+        <Setter Property="Foreground" Value="{StaticResource BrushText}" />
+        <Setter Property="FontFamily" Value="{StaticResource FontUi}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="TextElement.Foreground" Value="{StaticResource BrushText}" />
+        <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContextMenu">
+                    <!-- Margin 是给阴影留的地方；没有它阴影会被 Popup 的边界裁掉 -->
+                    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="1" CornerRadius="8" Padding="3" Margin="12"
+                            Effect="{StaticResource ShadowPopup}">
+                        <!-- 菜单项比屏幕高时要能滚；ItemsPresenter 不是 ScrollViewer 的直接子级时必须叫这个名字 -->
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                      Focusable="False">
+                            <ItemsPresenter x:Name="ItemsPresenter" KeyboardNavigation.DirectionalNavigation="Cycle" />
+                        </ScrollViewer>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="MenuItem">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource BrushText}" />
+        <Setter Property="FontFamily" Value="{StaticResource FontUi}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Padding" Value="8,6" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="MenuItem">
+                    <Border x:Name="root" Background="{TemplateBinding Background}"
+                            CornerRadius="6" Margin="1,0" Padding="2,3">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <!-- 勾选位：没有勾选的菜单也留这一格，标题才对齐 -->
+                                <ColumnDefinition Width="20" />
+                                <ColumnDefinition Width="*" MinWidth="110" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="16" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock x:Name="check" Grid.Column="0" Text="✓" FontSize="12"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="{StaticResource BrushAccent}" Visibility="Collapsed" />
+
+                            <ContentPresenter x:Name="hdr" Grid.Column="1" ContentSource="Header"
+                                              Margin="{TemplateBinding Padding}" VerticalAlignment="Center"
+                                              TextBlock.Foreground="{TemplateBinding Foreground}"
+                                              TextBlock.FontSize="{TemplateBinding FontSize}" />
+
+                            <TextBlock x:Name="gesture" Grid.Column="2" Text="{TemplateBinding InputGestureText}"
+                                       Margin="16,0,2,0" VerticalAlignment="Center" FontSize="12"
+                                       Foreground="{StaticResource BrushTextFaint}" />
+
+                            <Path x:Name="arrow" Grid.Column="3" Data="M 0,0 L 4,4 L 0,8 Z"
+                                  HorizontalAlignment="Right" VerticalAlignment="Center"
+                                  Fill="{StaticResource BrushTextDim}" Visibility="Collapsed" />
+
+                            <!-- 子菜单：底色/描边/阴影跟一级菜单一致 -->
+                            <Popup x:Name="PART_Popup" AllowsTransparency="True" Focusable="False"
+                                   IsOpen="{TemplateBinding IsSubmenuOpen}" Placement="Right"
+                                   VerticalOffset="-4" HorizontalOffset="-6" PopupAnimation="Fade">
+                                <Border Background="{StaticResource BrushPopup}" BorderBrush="{StaticResource BrushBorderStrong}"
+                                        BorderThickness="1" CornerRadius="8" Padding="3" Margin="12"
+                                        Effect="{StaticResource ShadowPopup}">
+                                    <ItemsPresenter />
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="root" Property="Background" Value="{StaticResource BrushHover}" />
+                        </Trigger>
+                        <Trigger Property="IsSubmenuOpen" Value="True">
+                            <Setter TargetName="root" Property="Background" Value="{StaticResource BrushHover}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{StaticResource BrushTextFaint}" />
+                            <Setter TargetName="arrow" Property="Fill" Value="{StaticResource BrushTextFaint}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="check" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="Role" Value="SubmenuHeader">
+                            <Setter TargetName="arrow" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsHighlighted" Value="True" />
+                                <Condition Property="Role" Value="SubmenuHeader" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="arrow" Property="Fill" Value="{StaticResource BrushAccentHover}" />
+                        </MultiTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- 菜单里的分隔线：默认的太浅，且不带左右留白 -->
+    <Style TargetType="Separator">
+        <Setter Property="Margin" Value="10,4" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Separator">
+                    <Border Height="1" Background="{StaticResource BrushBorder}" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ================= 复选框 ================= -->
     <Style TargetType="CheckBox">
         <Setter Property="Foreground" Value="{StaticResource BrushText}" />
